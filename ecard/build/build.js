@@ -108,7 +108,6 @@ const resolveImage = (slug, key) => {
 };
 
 /* ---------------- render helpers ---------------- */
-const siteAbs = (p) => `${SITE_URL}${BASE_PATH}${p}`;
 const staffPagePath = (slug, lang) =>
   lang === DEFAULT_LANG ? `${BASE_PATH}/${slug}/` : `${BASE_PATH}/${slug}/${lang}/`;
 
@@ -116,7 +115,7 @@ const staffPagePath = (slug, lang) =>
 const toRoot = (slug, lang) =>
   lang === DEFAULT_LANG ? '../' : '../../';
 
-const staffUrl = (slug, lang) => siteAbs(staffPagePath(slug, lang));
+const staffUrl = (slug, lang) => `${SITE_URL}${staffPagePath(slug, lang)}`;
 
 const normalizeTel = (t) => {
   const digits = String(t).replace(/[^\d+]/g, '');
