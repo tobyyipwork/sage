@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://ecard.sage.org.hk/sitemap.xml

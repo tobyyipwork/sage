@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="{{HTML_LANG}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE_TAG}}</title>
+    <meta name="description" content="{{OG_DESC}}">
+    <link rel="canonical" href="{{CANONICAL}}">
+    <link rel="icon" type="image/png" href="{{BASE}}assets/logo.png">
+    <meta property="og:type" content="profile">
+    <meta property="og:title" content="{{OG_TITLE}}">
+    <meta property="og:description" content="{{OG_DESC}}">
+    <meta property="og:url" content="{{OG_URL}}">
+    <meta property="og:image" content="{{OG_IMAGE}}">
+    <meta property="og:site_name" content="{{ORG_NAME}}">
+    <meta name="theme-color" content="#00834d">
+    {{HREFLANG}}
+    <style>{{CSS}}</style>
+</head>
+<body>
+    <div class="card-container">
+
+        <div class="lang-switcher" role="group" aria-label="Language">
+            {{LANG_LINKS}}
+        </div>
+
+        <!-- Banner -->
+        <div class="banner-bg">
+            {{BANNER}}
+        </div>
+
+        <!-- Profile -->
+        <div class="profile-sec">
+            <div class="avatar-box" aria-hidden="true">
+                {{AVATAR}}
+            </div>
+            <div class="profile-info">
+                <h2 class="name">{{NAME}}</h2>
+                <p class="title">{{TITLE}}</p>
+            </div>
+
+            <ul class="contact-list">
+                {{CONTACTS}}
+            </ul>
+
+            {{CHAT_BUTTONS}}
+        </div>
+
+        <!-- Tabs -->
+        <div class="nav-tabs">
+            <nav class="nav-container">
+                {{TABS}}
+            </nav>
+        </div>
+
+        <!-- Content -->
+        <div class="content-sec">
+            {{SECTIONS}}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer-sec">
+            <p class="ver">版本 {{VERSION}}</p>
+            <p>{{COPYRIGHT}}</p>
+        </div>
+
+        <!-- Fixed save bar -->
+        <div class="fixed-btn-bar">
+            <a href="{{VCF_HREF}}" class="save-btn" download>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><path d="m8 12 4 4 4-4"/><path d="M5 20h14"/></svg>
+                <span>{{SAVE_LABEL}}</span>
+            </a>
+        </div>
+
+    </div>
+
+    {{WECHAT_MODAL}}
+    <script>{{JS}}</script>
+</body>
+</html>

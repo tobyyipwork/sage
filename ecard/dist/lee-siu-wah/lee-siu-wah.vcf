@@ -1,0 +1,13 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Lee;Siu Wah;;;
+FN:李小華 (Lee Siu Wah)
+ORG:香港耆康老人福利會\;The Hong Kong Society for the Aged
+TITLE:示範用戶 (Demo User)
+ADR;TYPE=WORK:;;香港北角百福道21號香港青年協會大廈11樓;;;;
+ Hong Kong
+TEL;TYPE=WORK,VOICE:+85225112235
+EMAIL;TYPE=WORK,INTERNET:user@sage.org.hk
+URL:https://www.sage.org.hk
+REV:2026-09-17T16:00:00Z
+END:VCARD

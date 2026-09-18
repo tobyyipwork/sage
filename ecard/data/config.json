@@ -1,0 +1,25 @@
+{
+  "org": {
+    "zh": "香港耆康老人福利會",
+    "cn": "香港耆康老人福利会",
+    "en": "The Hong Kong Society for the Aged"
+  },
+  "org_site": "https://www.sage.org.hk",
+  "about": {
+    "zh": "耆康會一直緊貼時代步伐和社會環境轉變，前瞻不同長者群組及其照顧者的需要，積極開創嶄新服務，提供貼心照顧，並鼓勵長者為社會作出持續貢獻。",
+    "cn": "耆康会一直紧贴时代步伐和社会环境转变，前瞻不同长者群组及其照顾者的需要，积极开创崭新服务，提供贴心照顾，并鼓励长者为社会作出持续贡献。",
+    "en": "SAGE keeps pace with the times and evolving social conditions. Anticipating the needs of different elderly groups and their carers, we pioneer new services, provide attentive care, and encourage older persons to keep contributing to society."
+  },
+  "address": {
+    "zh": "香港北角百福道21號香港青年協會大廈11樓",
+    "cn": "香港北角百福道21号香港青年协会大厦11楼",
+    "en": "11/F, HKFYG Building, 21 Pak Fuk Road, North Point, Hong Kong"
+  },
+  "site": {
+    "url": "https://ecard.sage.org.hk",
+    "copyright": "© 2026 香港耆康老人福利會 版權所有",
+    "version": "1.0.0"
+  },
+  "langs": ["zh", "cn", "en"],
+  "default_lang": "zh"
+}
