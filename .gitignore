@@ -1,0 +1,9 @@
+# tooling / local artifacts (never commit)
+.codegraph/
+.omo/
+.workbuddy-ai/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log

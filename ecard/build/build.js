@@ -12,6 +12,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { qrSvg } = require('./qr.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(ROOT, 'data');
@@ -56,6 +57,30 @@ const WECHAT_LABEL = { zh: '微信', cn: '微信', en: 'WeChat' };
 const QR_HINT = { zh: '長按或掃描二維碼添加', cn: '长按或扫描二维码添加', en: 'Long-press or scan to add' };
 const WHATSAPP_LABEL = { zh: 'WhatsApp', cn: 'WhatsApp', en: 'WhatsApp' };
 
+/* ---------------- QR configuration ---------------- */
+const QR = config.qr || {};
+const QR_ENABLED = QR.enabled !== false;
+const ORG_CODE = config.org_code || 'org';
+const QR_LABEL = QR.label || { zh: '掃碼開啟名片', cn: '扫码开启名片', en: 'Scan to open card' };
+
+/**
+ * Resolve the text encoded into a staff member's QR code.
+ *  - mode "static"  → the direct public card URL (default)
+ *  - mode "dynamic" → a stable redirect URL that can be re-pointed later,
+ *                     e.g. https://qr.example.com/r/sage/chan-tai-man
+ * The URL is always built from live config, so changing the domain never
+ * requires touching the encoder.
+ */
+const qrTarget = (slug) => {
+  if (QR.mode === 'dynamic' && QR.base) {
+    const base = String(QR.base).replace(/\/+$/, '');
+    const tpl = QR.path || '/r/{org}/{slug}';
+    return base + tpl.replace('{org}', ORG_CODE).replace('{slug}', slug);
+  }
+  // static: the card's canonical public URL
+  return staffUrl(slug, DEFAULT_LANG);
+};
+
 /* ---------------- icons (inline SVG, stroke = currentColor) ---------------- */
 const icon = (name, cls) => {
   const paths = {
@@ -86,12 +111,15 @@ const icon = (name, cls) => {
 };
 
 /* ---------------- staff loading ---------------- */
-const staffs = fs
-  .readdirSync(STAFF_DIR)
-  .filter((f) => f.endsWith('.json'))
-  .map((f) => ({ file: f, data: readJson(path.join(STAFF_DIR, f)) }))
-  .filter((s) => s.data.active !== false)
-  .sort((a, b) => (a.data.slug < b.data.slug ? -1 : 1));
+let staffs = [];
+const loadStaff = () => {
+  staffs = fs
+    .readdirSync(STAFF_DIR)
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => ({ file: f, data: readJson(path.join(STAFF_DIR, f)) }))
+    .filter((s) => s.data.active !== false)
+    .sort((a, b) => (a.data.slug < b.data.slug ? -1 : 1));
+};
 
 /** resolve source image for staff {slug}/{key} → {rel, abs} | null */
 const resolveImage = (slug, key) => {
@@ -315,6 +343,14 @@ const renderSections = (staff, lang, root) => {
                                     </div>
             </section>`);
   }
+  if (QR_ENABLED) {
+    const target = qrTarget(staff.slug);
+    const svg = qrSvg(target, { cls: 'qr-svg', title: staff.name[lang] || staff.slug });
+    parts.push(`${sep()}            <section id="qrshare">
+                <h3 class="section-title">${escHtml(QR_LABEL[lang] || QR_LABEL.zh)}</h3>
+                <div class="qr-box">${svg}</div>
+            </section>`);
+  }
   return parts.join('\n            \n            ');
 };
 
@@ -419,24 +455,55 @@ const renderSitemap = () => {
 const escXml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /* ---------------- main ---------------- */
-fs.rmSync(OUT, { recursive: true, force: true });
-fs.mkdirSync(OUT, { recursive: true });
+function build() {
+  loadStaff();
+  fs.mkdirSync(OUT, { recursive: true });
 
-/* assets */
-const logo = path.join(ASSET_SRC, 'org', 'logo.png');
-if (fs.existsSync(logo)) copyFile(logo, 'assets/logo.png');
+  const currentSlugs = new Set(staffs.map((s) => s.data.slug));
 
-/* pages */
-for (const { data: s } of staffs) {
-  renderStaffPage(s);
-  const slugDir = path.join(OUT, s.slug);
-  fs.mkdirSync(slugDir, { recursive: true });
-  fs.writeFileSync(path.join(slugDir, `${s.slug}.vcf`), buildVcf(s, { config }));
+  /* Clean stale staff output (only the directories that no longer exist).
+     We intentionally do NOT wipe the whole dist/ — that trips bulk-delete
+     guards and also removes the static files we are about to re-create anyway. */
+  if (fs.existsSync(OUT)) {
+    for (const entry of fs.readdirSync(OUT)) {
+      if (entry === 'assets') continue;
+      const p = path.join(OUT, entry);
+      if (fs.statSync(p).isDirectory() && !currentSlugs.has(entry)) {
+        fs.rmSync(p, { recursive: true, force: true });
+      }
+    }
+  }
+  const assetStaffDir = path.join(OUT, 'assets', 'staff');
+  if (fs.existsSync(assetStaffDir)) {
+    for (const entry of fs.readdirSync(assetStaffDir)) {
+      const p = path.join(assetStaffDir, entry);
+      if (fs.statSync(p).isDirectory() && !currentSlugs.has(entry)) {
+        fs.rmSync(p, { recursive: true, force: true });
+      }
+    }
+  }
+
+  /* assets */
+  const logo = path.join(ASSET_SRC, 'org', 'logo.png');
+  if (fs.existsSync(logo)) copyFile(logo, 'assets/logo.png');
+
+  /* pages */
+  for (const { data: s } of staffs) {
+    renderStaffPage(s);
+    const slugDir = path.join(OUT, s.slug);
+    fs.mkdirSync(slugDir, { recursive: true });
+    fs.writeFileSync(path.join(slugDir, `${s.slug}.vcf`), buildVcf(s, { config }));
+  }
+  write('index.html', renderIndex());
+  write('sitemap.xml', renderSitemap());
+  write('robots.txt', `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}${BASE_PATH}/sitemap.xml\n`);
+  write('.nojekyll', '');
+
+  console.log(`✓ built ${staffs.length} staff × ${LANGS.length} langs → dist/`);
+  console.log(staffs.map((s) => `  /${s.data.slug}/ (${LANGS.map((l) => `${l}:${staffPagePath(s.data.slug, l)}`).join(', ')})`).join('\n'));
+  return staffs.length;
 }
-write('index.html', renderIndex());
-write('sitemap.xml', renderSitemap());
-write('robots.txt', `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}${BASE_PATH}/sitemap.xml\n`);
-write('.nojekyll', '');
 
-console.log(`✓ built ${staffs.length} staff × ${LANGS.length} langs → dist/`);
-console.log(staffs.map((s) => `  /${s.data.slug}/ (${LANGS.map((l) => `${l}:${staffPagePath(s.data.slug, l)}`).join(', ')})`).join('\n'));
+/* run directly: node build/build.js  — or require() to call build() in-process */
+if (require.main === module) build();
+module.exports = { build };

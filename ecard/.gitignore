@@ -1,0 +1,15 @@
+# dependencies (none — project is zero-dependency)
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# admin server local artifacts
+admin/.cache/
+
+# local tooling / test artifacts (not for the repo)
+.playwright-cli/
+form.yaml
+*.tmp

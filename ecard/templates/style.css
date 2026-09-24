@@ -242,6 +242,18 @@ a { color: inherit; }
 .social-item svg { width: 1.3rem; height: 1.3rem; }
 .social-item:hover { background-color: #f9fafb; }
 
+/* ---- QR share block ---- */
+.qr-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  background-color: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.75rem;
+}
+.qr-svg { width: 11rem; height: 11rem; display: block; }
+
 .links-list { display: flex; flex-direction: column; gap: 0.625rem; }
 .link-item {
   display: flex;

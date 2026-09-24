@@ -1,0 +1,14 @@
+{
+  "name": "sage-ecard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "香港耆康老人福利會 電子名片生成器與本地後台管理",
+  "scripts": {
+    "build": "node build/build.js",
+    "admin": "node admin/server.js",
+    "start": "node admin/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAGE E-Card 後台管理</title>
+<style>
+  :root{
+    --primary:#00834d; --primary-dark:#006b3f; --bg:#f1f4f9; --card:#fff;
+    --ink:#1f2937; --ink-soft:#4b5563; --ink-faint:#6b7280; --line:#e5e7eb; --danger:#dc2626;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang HK","Microsoft JhengHei","Noto Sans TC",sans-serif;line-height:1.5}
+  header.top{background:linear-gradient(135deg,#00834d,#0e9d5f 60%,#57bb8a);color:#fff;padding:1.1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem}
+  header.top h1{font-size:1.15rem;font-weight:700}
+  header.top .sub{font-size:.8rem;opacity:.9}
+  .wrap{max-width:1100px;margin:0 auto;padding:1.5rem}
+  .toolbar{display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;margin-bottom:1.25rem}
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:.6rem;font-weight:600;transition:.15s}
+  .btn{padding:.55rem 1rem;font-size:.875rem}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-primary:hover{background:var(--primary-dark)}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn-ghost:hover{background:#f9fafb}
+  .btn-danger{background:#fff;color:var(--danger);border:1px solid #fca5a5}
+  .btn-danger:hover{background:#fef2f2}
+  .btn-sm{padding:.35rem .7rem;font-size:.8rem}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:1rem}
+  .ecard{background:var(--card);border:1px solid var(--line);border-radius:.85rem;padding:1rem;display:flex;flex-direction:column;gap:.5rem}
+  .ecard .row1{display:flex;gap:.75rem;align-items:center}
+  .ecard .av{width:3.25rem;height:3.25rem;border-radius:9999px;overflow:hidden;background:#e8edf5;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .ecard .av img{width:100%;height:100%;object-fit:cover}
+  .ecard .av svg{width:1.6rem;height:1.6rem;color:#9ca3af}
+  .ecard .n{font-weight:700;font-size:1rem}
+  .ecard .t{font-size:.8rem;color:var(--ink-faint)}
+  .ecard .slug{font-size:.72rem;color:var(--ink-faint);font-family:monospace}
+  .badge{display:inline-block;font-size:.68rem;padding:.1rem .45rem;border-radius:9999px;font-weight:700}
+  .badge.on{background:#dcfce7;color:#166534}
+  .badge.off{background:#f3f4f6;color:#6b7280}
+  .ecard .acts{display:flex;gap:.5rem;margin-top:.4rem}
+  .empty{text-align:center;color:var(--ink-faint);padding:3rem 1rem}
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:2rem 1rem;overflow:auto}
+  .overlay.show{display:flex}
+  .modal{background:#fff;border-radius:1rem;width:100%;max-width:46rem;box-shadow:0 20px 50px rgba(15,23,42,.25);overflow:hidden}
+  .modal h2{font-size:1.1rem;padding:1.1rem 1.4rem;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .modal h2 .x{background:none;border:none;font-size:1.4rem;color:#9ca3af;cursor:pointer;line-height:1}
+  .modal .body{padding:1.4rem;max-height:72vh;overflow:auto}
+  .modal .foot{padding:1rem 1.4rem;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:.6rem}
+  fieldset{border:1px solid var(--line);border-radius:.7rem;padding:1rem;margin-bottom:1.1rem}
+  legend{font-weight:700;font-size:.9rem;padding:0 .4rem;color:var(--primary)}
+  .field{margin-bottom:.7rem}
+  .field label{display:block;font-size:.78rem;color:var(--ink-soft);margin-bottom:.2rem;font-weight:600}
+  .field input[type=text],.field input[type=email],.field input[type=tel],.field select{
+    width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:.5rem;font-size:.875rem;font-family:inherit;background:#fff;color:var(--ink)}
+  .field input:focus,.field select:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary)}
+  .triple{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+  .triple .lbl{font-size:.7rem;color:var(--ink-faint);text-align:center}
+  .check{display:flex;align-items:center;gap:.5rem;font-size:.875rem}
+  .img-row{display:flex;gap:.75rem;align-items:center;margin-bottom:.6rem}
+  .img-row .prev{width:4rem;height:4rem;border-radius:.5rem;border:1px solid var(--line);object-fit:cover;background:#f3f4f6}
+  .img-row .meta{flex:1}
+  .img-row .meta .k{font-size:.8rem;font-weight:700}
+  .img-row .meta .hint{font-size:.72rem;color:var(--ink-faint)}
+  .link-row{display:grid;grid-template-columns:1fr 2fr 1.3fr 1fr auto;gap:.4rem;margin-bottom:.5rem;align-items:center}
+  .link-row input,.link-row select{padding:.4rem .5rem;border:1px solid var(--line);border-radius:.45rem;font-size:.8rem;font-family:inherit}
+  .link-row .del{background:#fef2f2;color:var(--danger);border:1px solid #fca5a5;padding:.35rem .55rem;border-radius:.45rem;font-size:.8rem}
+  .addrow{font-size:.8rem;color:var(--primary);background:none;border:1px dashed var(--primary);padding:.35rem .7rem;border-radius:.45rem;width:100%}
+  .toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:.7rem 1.2rem;border-radius:.6rem;font-size:.85rem;opacity:0;transition:.25s;z-index:80;pointer-events:none;max-width:90vw}
+  .toast.show{opacity:1}
+  .toast.err{background:#b91c1c}
+  .muted{color:var(--ink-faint);font-size:.78rem}
+  .build-out{margin-top:.6rem;background:#0f172a;color:#a5f3d0;font-family:monospace;font-size:.72rem;padding:.7rem;border-radius:.5rem;white-space:pre-wrap;max-height:12rem;overflow:auto;display:none}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>香港耆康老人福利會 · 電子名片後台</h1>
+    <div class="sub" id="subline">SAGE E-Card Admin</div>
+  </div>
+  <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+    <button class="btn btn-ghost" id="buildBtn" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)">⟳ 重新生成網站</button>
+    <button class="btn" id="addBtn" style="background:#fff;color:var(--primary)">＋ 新增電子名片</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="toolbar">
+    <span class="muted" id="countLine"></span>
+  </div>
+  <div class="grid" id="list"></div>
+  <div class="empty" id="empty" style="display:none">尚無電子名片，點擊右上角「＋ 新增電子名片」開始。</div>
+  <pre class="build-out" id="buildOut"></pre>
+</div>
+
+<!-- Modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2><span id="modalTitle">新增電子名片</span><button class="x" id="closeX">&times;</button></h2>
+    <div class="body">
+      <fieldset>
+        <legend>基本資料</legend>
+        <div class="field">
+          <label>slug（網址識別碼，只能小寫英數與連字號，例：chan-tai-man）</label>
+          <input type="text" id="f_slug" placeholder="chan-tai-man" autocomplete="off">
+        </div>
+        <div class="field check"><input type="checkbox" id="f_active" checked><label for="f_active" style="margin:0">顯示於網站（active）</label></div>
+        <div class="field">
+          <label>姓名（三語）</label>
+          <div class="triple">
+            <div><div class="lbl">繁</div><input type="text" id="f_name_zh" placeholder="陳大文"></div>
+            <div><div class="lbl">簡</div><input type="text" id="f_name_cn" placeholder="陈大文"></div>
+            <div><div class="lbl">EN</div><input type="text" id="f_name_en" placeholder="Chan Tai Man"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>職稱（三語）</label>
+          <div class="triple">
+            <div><div class="lbl">繁</div><input type="text" id="f_title_zh"></div>
+            <div><div class="lbl">簡</div><input type="text" id="f_title_cn"></div>
+            <div><div class="lbl">EN</div><input type="text" id="f_title_en"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>vCard 姓名結構（可留空，留空時由英文名推導）</label>
+          <div class="triple">
+            <div><div class="lbl">姓 family</div><input type="text" id="f_n_family" placeholder="Chan"></div>
+            <div><div class="lbl">名 given</div><input type="text" id="f_n_given" placeholder="Tai Man"></div>
+            <div></div>
+          </div>
+        </div>
+        <div class="triple">
+          <div class="field"><label>電郵</label><input type="email" id="f_email" placeholder="user@sage.org.hk"></div>
+          <div class="field"><label>辦公室電話</label><input type="tel" id="f_phone_work" placeholder="2511 2235"></div>
+          <div class="field"><label>手機</label><input type="tel" id="f_phone_mobile" placeholder="9123 4567"></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>圖片</legend>
+        <div class="img-row" data-key="banner">
+          <img class="prev" id="prev_banner" alt=""><span class="meta"><div class="k">橫幅 Banner</div><div class="hint">建議 1200×300 以上</div></span>
+          <input type="file" accept="image/*" class="imgfile" style="display:none">
+          <button type="button" class="btn btn-sm btn-ghost pick">選擇</button>
+          <button type="button" class="btn btn-sm btn-danger rmv">移除</button>
+        </div>
+        <div class="img-row" data-key="avatar">
+          <img class="prev" id="prev_avatar" alt=""><span class="meta"><div class="k">頭像 Avatar</div><div class="hint">正方形，建議 ≤200KB</div></span>
+          <input type="file" accept="image/*" class="imgfile" style="display:none">
+          <button type="button" class="btn btn-sm btn-ghost pick">選擇</button>
+          <button type="button" class="btn btn-sm btn-danger rmv">移除</button>
+        </div>
+        <div class="img-row" data-key="wechat_qr">
+          <img class="prev" id="prev_wechat_qr" alt=""><span class="meta"><div class="k">微信 QR</div><div class="hint">上傳後才會出現微信按鈕</div></span>
+          <input type="file" accept="image/*" class="imgfile" style="display:none">
+          <button type="button" class="btn btn-sm btn-ghost pick">選擇</button>
+          <button type="button" class="btn btn-sm btn-danger rmv">移除</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>社群連結 Social</legend>
+        <div id="socialRows"></div>
+        <button type="button" class="addrow" data-add="social">＋ 新增社群連結</button>
+      </fieldset>
+
+      <fieldset>
+        <legend>自訂連結 Links</legend>
+        <div id="customRows"></div>
+        <button type="button" class="addrow" data-add="custom">＋ 新增自訂連結</button>
+      </fieldset>
+    </div>
+    <div class="foot">
+      <button class="btn btn-ghost" id="cancelBtn">取消</button>
+      <button class="btn btn-primary" id="saveBtn">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const ICON_OPTS = ['globe','envelope','phone','mobile','building','map-pin','user','facebook','instagram','linkedin','youtube','whatsapp','weixin'];
+const $=(s,r=document)=>r.querySelector(s);
+const api=async(method,url,body)=>{
+  const opt={method,headers:{}};
+  if(body!==undefined){opt.headers['Content-Type']='application/json';opt.body=JSON.stringify(body);}
+  const r=await fetch(url,opt);
+  const t=await r.text();
+  const j=t?JSON.parse(t):{};
+  if(!r.ok) throw new Error(j.error||j.message||('HTTP '+r.status));
+  return j;
+};
+let STAFF=[], CONFIG={}, editing=null, pending={}, removed=new Set();
+
+function toast(msg,err){const el=$('#toast');el.textContent=msg;el.className='toast show'+(err?' err':'');setTimeout(()=>el.className='toast',2600);}
+
+async function init(){
+  try{CONFIG=await api('GET','/api/config');}catch(e){CONFIG={};}
+  $('#subline').textContent=(CONFIG.org&&CONFIG.org.zh?CONFIG.org.zh+' · ':'')+'SAGE E-Card Admin · v'+(CONFIG.site?CONFIG.site.version:'');
+  await refresh();
+}
+async function refresh(){STAFF=await api('GET','/api/staff');renderList();}
+
+function renderList(){
+  const list=$('#list');list.innerHTML='';
+  $('#countLine').textContent=`共 ${STAFF.length} 張名片`;
+  $('#empty').style.display=STAFF.length?'none':'block';
+  for(const s of STAFF){
+    const div=document.createElement('div');div.className='ecard';
+    const av=s.has_avatar?`<img src="/preview/${encodeURIComponent(s.slug)}/avatar?t=${Date.now()}" alt="">`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 4-5.5 8-5.5s7.2 1.5 8 5.5"/></svg>`;
+    div.innerHTML=`
+      <div class="row1">
+        <div class="av">${av}</div>
+        <div style="min-width:0">
+          <div class="n">${esc(s.name&&(s.name.zh||s.name.en)||'(未命名)')}</div>
+          <div class="t">${esc((s.title&&(s.title.zh||s.title.en))||'')}</div>
+        </div>
+      </div>
+      <div class="slug">/${esc(s.slug)}/ <span class="badge ${s.active?'on':'off'}">${s.active?'顯示中':'隱藏'}</span></div>
+      <div class="acts">
+        <button class="btn btn-sm btn-ghost" data-edit="${esc(s.slug)}">編輯</button>
+        <button class="btn btn-sm btn-danger" data-del="${esc(s.slug)}">刪除</button>
+      </div>`;
+    list.appendChild(div);
+  }
+}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ---- modal ----
+function openForm(slug){
+  editing=slug||null;pending={};removed=new Set();
+  $('#modalTitle').textContent=slug?'編輯電子名片':'新增電子名片';
+  $('#f_slug').value=slug||'';$('#f_slug').readOnly=!!slug;
+  $('#socialRows').innerHTML='';$('#customRows').innerHTML='';
+  if(slug){
+    api('GET','/api/staff/'+encodeURIComponent(slug)).then(d=>{
+      $('#f_active').checked=d.active!==false;
+      $('#f_name_zh').value=d.name?.zh||'';$('#f_name_cn').value=d.name?.cn||'';$('#f_name_en').value=d.name?.en||'';
+      $('#f_title_zh').value=d.title?.zh||'';$('#f_title_cn').value=d.title?.cn||'';$('#f_title_en').value=d.title?.en||'';
+      $('#f_n_family').value=d.n?.family||'';$('#f_n_given').value=d.n?.given||'';
+      $('#f_email').value=d.email||'';$('#f_phone_work').value=d.phone_work||'';$('#f_phone_mobile').value=d.phone_mobile||'';
+      (d.social_links||[]).forEach(addSocialRow);
+      (d.custom_links||[]).forEach(addCustomRow);
+      setPrev('banner',d._images?.banner,slug);
+      setPrev('avatar',d._images?.avatar,slug);
+      setPrev('wechat_qr',d._images?.wechat_qr,slug);
+    }).catch(e=>toast(e.message,true));
+  }else{
+    $('#f_active').checked=true;
+    $('#f_name_zh').value='';$('#f_name_cn').value='';$('#f_name_en').value='';
+    $('#f_title_zh').value='';$('#f_title_cn').value='';$('#f_title_en').value='';
+    $('#f_n_family').value='';$('#f_n_given').value='';
+    $('#f_email').value='';$('#f_phone_work').value='';$('#f_phone_mobile').value='';
+    addSocialRow();addCustomRow();
+  }
+  $('#overlay').classList.add('show');
+}
+function closeForm(){$('#overlay').classList.remove('show');}
+
+function setPrev(key,has,slug){
+  const img=$('#prev_'+key);
+  if(has&&slug){img.src=`/preview/${encodeURIComponent(slug)}/${key}?t=${Date.now()}`;img.style.display='block';}
+  else{img.removeAttribute('src');img.style.display='none';}
+}
+
+function addSocialRow(d={}){
+  const c=$('#socialRows');const row=document.createElement('div');row.className='link-row';
+  row.innerHTML=`
+    <input type="text" placeholder="平台名稱" value="${esc(d.platform||'')}" data-k="platform">
+    <input type="text" placeholder="https://..." value="${esc(d.url||'')}" data-k="url">
+    <select data-k="icon">${ICON_OPTS.map(o=>`<option value="${o}" ${o===(d.icon||'globe')?'selected':''}>${o}</option>`).join('')}</select>
+    <input type="text" placeholder="顏色#hex" value="${esc(d.color||'')}" data-k="color">
+    <button type="button" class="del">✕</button>`;
+  row.querySelector('.del').onclick=()=>row.remove();
+  c.appendChild(row);
+}
+function addCustomRow(d={}){
+  const c=$('#customRows');const row=document.createElement('div');row.className='link-row';
+  row.innerHTML=`
+    <input type="text" placeholder="標題(繁)" value="${esc(d.title?.zh||'')}" data-k="title_zh">
+    <input type="text" placeholder="https://..." value="${esc(d.url||'')}" data-k="url">
+    <select data-k="icon">${ICON_OPTS.map(o=>`<option value="${o}" ${o===(d.icon||'globe')?'selected':''}>${o}</option>`).join('')}</select>
+    <input type="text" placeholder="顏色#hex" value="${esc(d.color||'')}" data-k="color">
+    <button type="button" class="del">✕</button>`;
+  row.querySelector('.del').onclick=()=>row.remove();
+  c.appendChild(row);
+}
+
+function collectRows(container,map){
+  return [...container.querySelectorAll('.link-row')].map(r=>{
+    const o={};r.querySelectorAll('[data-k]').forEach(el=>{o[el.dataset.k]=el.value.trim();});return o;
+  }).filter(o=>map(o));
+}
+
+async function submitForm(){
+  const slug=$('#f_slug').value.trim();
+  if(!slug){toast('請填寫 slug',true);return;}
+  const social=collectRows($('#socialRows'),o=>o.url);
+  const custom=collectRows($('#customRows'),o=>o.url).map(o=>({title:{zh:o.title_zh,cn:o.title_zh,en:o.title_zh},url:o.url,icon:o.icon,color:o.color}));
+  const payload={
+    slug,
+    active:$('#f_active').checked,
+    name:{zh:$('#f_name_zh').value.trim(),cn:$('#f_name_cn').value.trim(),en:$('#f_name_en').value.trim()},
+    title:{zh:$('#f_title_zh').value.trim(),cn:$('#f_title_cn').value.trim(),en:$('#f_title_en').value.trim()},
+    n:{family:$('#f_n_family').value.trim(),given:$('#f_n_given').value.trim()},
+    email:$('#f_email').value.trim(),
+    phone_work:$('#f_phone_work').value.trim(),
+    phone_mobile:$('#f_phone_mobile').value.trim(),
+    social_links:social.map(o=>({platform:o.platform,url:o.url,icon:o.icon,color:o.color})),
+    custom_links:custom,
+  };
+  try{
+    if(editing) await api('PUT','/api/staff/'+encodeURIComponent(editing),payload);
+    else await api('POST','/api/staff',payload);
+    // upload pending images
+    const target=editing||slug;
+    for(const key of Object.keys(pending)){
+      if(pending[key]) await api('POST',`/api/staff/${encodeURIComponent(target)}/image`,{key,dataUrl:pending[key]});
+    }
+    for(const key of removed){
+      await api('DELETE',`/api/staff/${encodeURIComponent(target)}/image/${key}`).catch(()=>{});
+    }
+    toast(editing?'已更新':'已新增');
+    closeForm();await refresh();
+  }catch(e){toast(e.message,true);}
+}
+
+async function deleteStaff(slug){
+  if(!confirm(`確定刪除「${slug}」？此動作會連同其圖片一併移除，且無法復原。`))return;
+  try{await api('DELETE','/api/staff/'+encodeURIComponent(slug));toast('已刪除');await refresh();}catch(e){toast(e.message,true);}
+}
+
+async function doBuild(){
+  const btn=$('#buildBtn');btn.disabled=true;btn.textContent='生成中…';
+  const out=$('#buildOut');out.style.display='block';out.textContent='';
+  try{
+    const r=await api('POST','/api/build');
+    out.textContent=(r.output||'')+'\n✓ 完成';toast('網站已重新生成');
+  }catch(e){out.textContent='✗ '+e.message;toast('生成失敗',true);}
+  finally{btn.disabled=false;btn.textContent='⟳ 重新生成網站';}
+}
+
+// image pick handlers (event delegation)
+document.addEventListener('click',e=>{
+  const pick=e.target.closest('.pick');
+  if(pick){pick.parentElement.querySelector('.imgfile').click();return;}
+  const rmv=e.target.closest('.rmv');
+  if(rmv){
+    const key=rmv.parentElement.dataset.key;
+    if(editing) removed.add(key);
+    pending[key]=null;
+    const img=$('#prev_'+key);img.removeAttribute('src');img.style.display='none';
+    return;
+  }
+  const add=e.target.closest('.addrow');
+  if(add){add.getAttribute('data-add')==='social'?addSocialRow():addCustomRow();return;}
+  const ed=e.target.closest('[data-edit]');
+  if(ed){openForm(ed.getAttribute('data-edit'));return;}
+  const dl=e.target.closest('[data-del]');
+  if(dl){deleteStaff(dl.getAttribute('data-del'));return;}
+});
+document.addEventListener('change',e=>{
+  const f=e.target.closest('.imgfile');
+  if(!f)return;
+  const key=f.parentElement.dataset.key;
+  const file=f.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    pending[key]=reader.result;
+    if(removed.has(key))removed.delete(key);
+    const img=$('#prev_'+key);img.src=reader.result;img.style.display='block';
+  };
+  reader.readAsDataURL(file);
+});
+
+$('#addBtn').onclick=()=>openForm(null);
+$('#closeX').onclick=closeForm;
+$('#cancelBtn').onclick=closeForm;
+$('#saveBtn').onclick=submitForm;
+$('#buildBtn').onclick=doBuild;
+$('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeForm();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeForm();});
+
+init();
+</script>
+</body>
+</html>
