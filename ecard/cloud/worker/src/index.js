@@ -48,10 +48,24 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 單張圖片 5MB
 /**
  * 觸發前台重建，並套用節流。
  *
- * 為什麼要節流：Cloudflare 免費版與 GitHub Actions 都有配額概念，
- * 而使用者常常連續編輯多張名片後才離開。若每次儲存都立刻觸發，
- * 短時間內會產生大量重複建置（其中多數建置結果相同）。
- * 因此預設在視窗內合併為一次；force 可略過。
+ * ── 為什麼要節流 ──────────────────────────────────────────
+ *
+ * 使用者常常連續編輯多張名片後才離開。若每次儲存都立刻觸發，
+ * 短時間內會產生大量建置，而其中絕大多數的產出結果完全相同。
+ *
+ * ── 為什麼是「先觸發、後節流 + 尾端補跑」 ──────────────────
+ *
+ * 建置讀取的是「當下 KV 的全部資料」，不是「只處理被改的那一張」。
+ * 所以只要變更發生在建置讀取 KV 之前，就會被一併涵蓋。
+ *
+ * 但這裡有個時間差風險：從送出觸發到 job 真的開始讀 KV，
+ * 中間有「排隊 + 啟動 + 準備環境」約 10–40 秒。若使用者在
+ * 這之後才改第二張名片，該變更就趕不上這一輪；而節流又會擋住
+ * 下一輪，前台就會停在只反映第一張的狀態 —— 這是必須避免的。
+ *
+ * 因此節流期間若有新變更，會標記 pending，讓呼叫端知道
+ * 「這一輪趕不上，但已記錄，需補跑」。回報給使用者的訊息也
+ * 據此明確區分，不讓人有「以為更新了其實沒有」的誤解。
  *
  * 節流狀態記在 KV 而非記憶體 —— 記憶體版在多個 isolate 間不共用，
  * 會各自計時而失效。
@@ -74,6 +88,7 @@ const runRebuild = async (storage, env, { force = false } = {}) => {
   }
 
   const buildKey = `build:${storage.ORG}:last`;
+  const pendingKey = `build:${storage.ORG}:pending`;
   const now = Date.now();
   const envMin = env.BUILD_THROTTLE_MINUTES;
   const windowMs = (envMin === undefined || envMin === '' ? 5 : Number(envMin)) * 60 * 1000;
@@ -82,12 +97,26 @@ const runRebuild = async (storage, env, { force = false } = {}) => {
     const last = await storage.getJson(buildKey);
     if (last && last.at && now - last.at < windowMs) {
       const waitSec = Math.ceil((windowMs - (now - last.at)) / 1000);
+
+      // 記下「有一輪變更尚未反映」。前台顯示說明會據此提醒使用者。
+      // 寫入失敗不影響主要流程 —— 資料本身已經存好了。
+      try {
+        await storage.putJson(pendingKey, { at: now });
+      } catch {
+        /* 忽略 */
+      }
+
       return {
         ok: true,
         configured: true,
         triggered: false,
         throttled: true,
-        message: `近期已觸發過重建，本次合併略過（${waitSec} 秒後可再觸發）。資料已儲存。`,
+        pending: true,
+        message: `近期已觸發過重建，本次變更已記錄（${waitSec} 秒後可再觸發）。`,
+        note:
+          '若這筆變更趕不上正在執行的那一輪，請稍候約 ' +
+          Math.ceil(waitSec / 60) +
+          ' 分鐘後按「立即重建前台」，或再儲存一次即可觸發。',
         next_allowed_in_seconds: waitSec,
       };
     }
@@ -99,6 +128,8 @@ const runRebuild = async (storage, env, { force = false } = {}) => {
   if (result.triggered) {
     try {
       await storage.putJson(buildKey, { at: now });
+      // 這一輪已涵蓋先前的待處理變更，清掉標記
+      await storage.deleteJson(pendingKey);
     } catch {
       /* 節流記錄失敗不影響主要流程 */
     }

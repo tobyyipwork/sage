@@ -375,11 +375,19 @@ function collectRows(container,map){
 
 /* ── 重建觸發結果提示 ──
    後端在所有異動端點都會回傳 rebuild 物件，說明是否已通知 GitHub 重建。
-   這裡統一轉成使用者看得懂的訊息，避免「存了但不知道有沒有生效」。 */
+   這裡統一轉成使用者看得懂的訊息，避免「存了但不知道有沒有生效」。
+
+   三種情況必須分清楚：
+     triggered         已觸發，前台即將更新
+     throttled+pending 這一輪趕不上，要稍後再觸發一次（不可說成「已更新」）
+     configured:false  未設定，只能手動或等排程 */
 function buildHint(rebuild){
   if(!rebuild) return {msg:'',warn:false};
   if(rebuild.triggered) return {msg:'，已開始重建前台（約 1–2 分鐘後生效）',warn:false};
-  if(rebuild.throttled) return {msg:'，前台將稍後合併更新',warn:false};
+  if(rebuild.throttled){
+    const mins=Math.max(1,Math.ceil((rebuild.next_allowed_in_seconds||0)/60));
+    return {msg:`，但這一輪可能趕不上（已記錄）。請約 ${mins} 分鐘後按「立即重建前台」確保生效`,warn:true};
+  }
   if(rebuild.configured===false) return {msg:'，但自動重建尚未設定，需手動或等排程',warn:true};
   return {msg:'',warn:false};
 }
@@ -388,9 +396,9 @@ function showBuildOut(rebuild){
   const out=$('#buildOut');
   if(!rebuild||!out) return;
   out.style.display='block';
-  const h=buildHint(rebuild);
-  const mark=rebuild.triggered?'✓':(rebuild.configured===false?'ℹ':'•');
-  out.textContent=mark+' '+(rebuild.message||'已處理')+h.msg;
+  const mark=rebuild.triggered?'✓':(rebuild.configured===false?'ℹ':'⚠');
+  out.textContent=mark+' '+(rebuild.message||'已處理')
+    +(rebuild.note?('\n'+rebuild.note):'');
 }
 
 async function submitForm(){

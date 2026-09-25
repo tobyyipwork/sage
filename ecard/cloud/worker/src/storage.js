@@ -91,6 +91,11 @@ export const createStorage = (env) => {
     await KV.put(key, JSON.stringify(obj));
   };
 
+  /** 刪除單一 key（用於清除標記類資料，例如重建的 pending 狀態） */
+  const deleteJson = async (key) => {
+    await KV.delete(key);
+  };
+
   /* ---------- config ---------- */
   const getConfig = () => getJson(kConfig());
 
@@ -269,6 +274,7 @@ export const createStorage = (env) => {
     imageMode: R2 ? 'r2' : 'kv',
     getJson,
     putJson,
+    deleteJson,
     getConfig,
     putConfig,
     getIndex,

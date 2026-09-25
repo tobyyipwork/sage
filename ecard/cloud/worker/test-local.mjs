@@ -366,7 +366,13 @@ section('⑩b 建置節流（保護建置配額）');
   check('第二次被節流（不重複觸發）', second.data?.triggered === false && second.data?.throttled === true);
   check('GitHub API 仍只被呼叫 1 次', ghCalls === 1, `got ${ghCalls}`);
   check('節流時回報剩餘等待秒數', typeof second.data?.next_allowed_in_seconds === 'number');
-  check('節流訊息說明資料已儲存', /已儲存/.test(second.data?.message || ''));
+  check('節流訊息說明變更已記錄', /已記錄/.test(second.data?.message || ''), second.data?.message);
+  check('節流時標記 pending（這一輪可能趕不上）', second.data?.pending === true);
+  check(
+    '節流時明確提醒要再觸發一次（不可說成已更新）',
+    /立即重建前台/.test(second.data?.note || ''),
+    second.data?.note
+  );
 
   const forced = await callHook({ body: { force: true } });
   check('force:true 可強制觸發', forced.data?.triggered === true);
