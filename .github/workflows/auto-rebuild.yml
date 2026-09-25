@@ -1,0 +1,120 @@
+name: 自動重建名片前台
+
+# 資料存在 Cloudflare KV，前台是預先建置的靜態檔（GitHub Pages）。
+# 這個 workflow 定期檢查 KV 資料是否有變動，有變才重建並提交 dist/。
+#
+# 為什麼要「先比對指紋」而不是每次都重建？
+#   每 15 分鐘 = 每天 96 次 = 每月約 2880 次 commit。
+#   有了指紋比對，只有你真的改過資料才會產生 commit，
+#   平常執行只花幾秒且不需要 push，也就不會觸發 Pages 重建。
+
+on:
+  schedule:
+    # 每 15 分鐘（UTC）。GitHub 的排程可能有數分鐘延遲，屬正常現象。
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: '略過指紋比對，強制重建'
+        type: boolean
+        default: false
+
+# 同一時間只允許一個執行個體。若上一輪還在跑，新的排程會被跳過，
+# 避免兩輪同時 push 造成衝突。
+concurrency:
+  group: auto-rebuild
+  cancel-in-progress: false
+
+# workflow 需要能推送 commit 回 repo
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 取出程式碼
+        uses: actions/checkout@v4
+        with:
+          # 用 token 以便後續 push；GITHUB_TOKEN 在 repo 內已足夠
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 比對資料指紋
+        id: fp
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          output=$(node ecard/cloud/scripts/kv-fingerprint.js --check 2>&1)
+          code=$?
+          set -e
+          echo "$output"
+
+          if [ $code -eq 0 ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 判斷是否需要重建
+        id: decide
+        run: |
+          if [ "${{ steps.fp.outputs.changed }}" = "true" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "→ 資料有變動，開始重建"
+          elif [ "${{ inputs.force }}" = "true" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "→ 手動指定強制重建"
+          else
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "→ 資料未變動，跳過本次重建"
+          fi
+
+      - name: 從 KV 同步資料
+        if: steps.decide.outputs.go == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node ecard/cloud/scripts/kv-to-data.js
+
+      - name: 建置靜態檔
+        if: steps.decide.outputs.go == 'true'
+        run: node ecard/build/build.js
+
+      - name: 提交並推送
+        if: steps.decide.outputs.go == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # 記下新的指紋，與資料同步提交
+          node ecard/cloud/scripts/kv-fingerprint.js --write
+
+          git add -A ecard/dist ecard/data .kv-fingerprint
+
+          if git diff --cached --quiet; then
+            echo "→ 沒有任何檔案變化，不產生 commit"
+            exit 0
+          fi
+
+          # commit 訊息帶上觸發來源，方便日後追查
+          stamp=$(date -u '+%Y-%m-%d %H:%M UTC')
+          git commit -m "chore(auto): 重建名片前台（${stamp}）"
+          git push
+          echo "→ 已推送，GitHub Pages 將在約 1 分鐘內更新"
+
+      - name: 失敗通知
+        if: failure()
+        run: |
+          echo "::error::自動重建失敗。常見原因："
+          echo "::error::1. CLOUDFLARE_API_TOKEN 過期或缺少 Workers KV Storage Read 權限"
+          echo "::error::2. CLOUDFLARE_ACCOUNT_ID 設定錯誤"
+          echo "::error::3. KV 中的 config: 或 index: 資料缺失"

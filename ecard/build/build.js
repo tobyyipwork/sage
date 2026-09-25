@@ -62,6 +62,8 @@ const QR = config.qr || {};
 const QR_ENABLED = QR.enabled !== false;
 const ORG_CODE = config.org_code || 'org';
 const QR_LABEL = QR.label || { zh: '掃碼開啟名片', cn: '扫码开启名片', en: 'Scan to open card' };
+/* Accordion: 0 開 | 1 關 | 2 不顯示（行為可用 config.qr.accordion_overrides 對個別 slug 覆寫） */
+const QR_ACCORDION_DEFAULT = Number.isInteger(QR.accordion) ? QR.accordion : 1;
 
 /**
  * Resolve the text encoded into a staff member's QR code.
@@ -105,6 +107,9 @@ const icon = (name, cls) => {
       '<path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Zm0 1.8a7.2 7.2 0 1 1-3.7 13.4l-.3-.2-2.4.6.6-2.3-.2-.3A7.2 7.2 0 0 1 12 4.8Zm-3.4 3.4c-.15 0-.4.05-.6.3-.2.25-.8.8-.8 1.95s.8 2.25.95 2.4c.1.2 1.6 2.55 3.95 3.5 1.95.8 2.35.65 2.75.6.4-.05 1.3-.55 1.5-1.05.2-.5.2-.95.15-1.05l-.85-.4s-.85-.4-.95-.45c-.15-.05-.25-.05-.35.15-.1.2-.4.5-.5.6-.1.1-.2.15-.35.05a6.4 6.4 0 0 1-2.5-1.55 6.3 6.3 0 0 1-1.3-1.8c-.1-.2 0-.3.05-.4l.4-.45c.15-.15.2-.3.3-.5.1-.2.05-.35 0-.5l-.7-1.65c-.2-.4-.4-.35-.55-.35Z"/>',
     weixin:
       '<path d="M8.8 3.5A6.3 6.3 0 0 0 2.5 9.8c0 1.9.85 3.6 2.2 4.8l-.7 2.6 2.9-1.3c.6.2 1.25.3 1.9.3.3 0 .6 0 .9-.05a6.3 6.3 0 0 1-.9-3.25 6.35 6.35 0 0 1 8-6.1A6.3 6.3 0 0 0 8.8 3.5Z"/><path d="M15.5 10.3a4.6 4.6 0 0 0-4.6 4.6c0 .5.08 1 .23 1.45l-.55 2 2.25-1a4.6 4.6 0 0 0 6.4-1.2 4.6 4.6 0 0 0-3.7-5.85Zm-.9 2.35c.35 0 .6.3.6.6a.6.6 0 0 1-.6.6.6.6 0 0 1-.6-.6c0-.3.25-.6.6-.6Zm-2.55 0c.35 0 .6.3.6.6a.6.6 0 0 1-.6.6.6.6 0 0 1-.6-.6c0-.3.3-.6.6-.6Z"/>',
+    qr:
+      '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20.5 14v3"/><path d="M14 20.5h3"/><path d="M20.5 20.5h.01"/>',
+    'chevron-down': '<path d="m6 9 6 6 6-6"/>',
   };
   const body = paths[name] || paths.globe;
   return `<svg class="${cls || ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
@@ -346,10 +351,33 @@ const renderSections = (staff, lang, root) => {
   if (QR_ENABLED) {
     const target = qrTarget(staff.slug);
     const svg = qrSvg(target, { cls: 'qr-svg', title: staff.name[lang] || staff.slug });
-    parts.push(`${sep()}            <section id="qrshare">
-                <h3 class="section-title">${escHtml(QR_LABEL[lang] || QR_LABEL.zh)}</h3>
+    const label = escHtml(QR_LABEL[lang] || QR_LABEL.zh);
+    const hint = escHtml(QR_HINT[lang] || QR_HINT.zh);
+    const mode = Number.isInteger(staff.qr_accordion) ? staff.qr_accordion : QR_ACCORDION_DEFAULT;
+    if (mode === 2) {
+      /* 不顯示：只保留隱藏的靜態區塊（不加入 tab 導覽） */
+      parts.push(`${sep()}            <section id="qrshare" class="qr-share is-plain" hidden>
+                <h3 class="section-title">${label}</h3>
                 <div class="qr-box">${svg}</div>
             </section>`);
+    } else {
+      const openAttr = mode === 0 ? ' open' : '';
+      parts.push(`${sep()}            <section id="qrshare" class="qr-share">
+                <details class="qr-acc"${openAttr}>
+                    <summary class="qr-summary">
+                        <span class="qr-summary-icon">${icon('qr')}</span>
+                        <span class="qr-summary-text">
+                            <span class="qr-summary-title">${label}</span>
+                            <span class="qr-summary-hint">${hint}</span>
+                        </span>
+                        <span class="qr-summary-chevron">${icon('chevron-down')}</span>
+                    </summary>
+                    <div class="qr-panel">
+                        <div class="qr-box">${svg}</div>
+                    </div>
+                </details>
+            </section>`);
+    }
   }
   return parts.join('\n            \n            ');
 };
@@ -466,7 +494,8 @@ function build() {
      guards and also removes the static files we are about to re-create anyway. */
   if (fs.existsSync(OUT)) {
     for (const entry of fs.readdirSync(OUT)) {
-      if (entry === 'assets') continue;
+      // 'assets' 與 'admin' 不是名片目錄，不可誤刪
+      if (entry === 'assets' || entry === 'admin') continue;
       const p = path.join(OUT, entry);
       if (fs.statSync(p).isDirectory() && !currentSlugs.has(entry)) {
         fs.rmSync(p, { recursive: true, force: true });
@@ -498,6 +527,18 @@ function build() {
   write('sitemap.xml', renderSitemap());
   write('robots.txt', `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}${BASE_PATH}/sitemap.xml\n`);
   write('.nojekyll', '');
+
+  /* 後台管理介面
+     管理介面原始檔在 admin/public/index.html（本機開發用路徑），
+     但部署後若照這個路徑，網址會是 .../admin/public/ — 又長又容易記錯。
+     這裡把它複製一份到 dist/admin/index.html，
+     讓正式網址成為乾淨的 .../admin/。 */
+  const adminSrc = path.join(ROOT, 'admin', 'public', 'index.html');
+  if (fs.existsSync(adminSrc)) {
+    const adminDir = path.join(OUT, 'admin');
+    fs.mkdirSync(adminDir, { recursive: true });
+    fs.copyFileSync(adminSrc, path.join(adminDir, 'index.html'));
+  }
 
   console.log(`✓ built ${staffs.length} staff × ${LANGS.length} langs → dist/`);
   console.log(staffs.map((s) => `  /${s.data.slug}/ (${LANGS.map((l) => `${l}:${staffPagePath(s.data.slug, l)}`).join(', ')})`).join('\n'));

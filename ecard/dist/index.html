@@ -266,6 +266,62 @@ a { color: inherit; }
 }
 .qr-svg { width: 11rem; height: 11rem; display: block; }
 
+/* QR accordion (<details>) */
+.qr-acc {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background-color: #fff;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.qr-acc[open] { border-color: var(--primary); box-shadow: 0 1px 8px rgba(0, 131, 77, 0.08); }
+.qr-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.qr-summary::-webkit-details-marker { display: none; }
+.qr-summary::marker { content: ''; }
+.qr-summary:hover { background-color: #f9fafb; }
+.qr-summary-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  background-color: rgba(0, 131, 77, 0.08);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qr-summary-icon svg { width: 1.15rem; height: 1.15rem; }
+.qr-summary-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.qr-summary-title { font-size: 0.9375rem; font-weight: 600; color: #111827; }
+.qr-summary-hint { font-size: 0.75rem; color: var(--ink-faint); margin-top: 0.1rem; }
+.qr-summary-chevron {
+  flex-shrink: 0;
+  color: var(--ink-faint);
+  display: flex;
+  transition: transform 0.25s ease;
+}
+.qr-summary-chevron svg { width: 1rem; height: 1rem; }
+.qr-acc[open] .qr-summary-chevron { transform: rotate(180deg); }
+.qr-acc[open] .qr-summary { border-bottom: 1px solid var(--line-soft); }
+.qr-panel { padding: 1rem; animation: qr-reveal 0.25s ease; }
+@keyframes qr-reveal {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qr-panel { animation: none; }
+  .qr-summary-chevron { transition: none; }
+}
+
 .links-list { display: flex; flex-direction: column; gap: 0.625rem; }
 .link-item {
   display: flex;
@@ -404,7 +460,7 @@ a { color: inherit; }
 <header class="site-head">
     <img src="assets/logo.png" alt="香港耆康老人福利會">
     <h1>香港耆康老人福利會 電子名片</h1>
-    <p>1.1.0</p>
+    <p>1.2.0</p>
 </header>
 <main class="staff-grid">
         <a class="staff-card" href="/sage/ecard/dist/chan-tai-man/">

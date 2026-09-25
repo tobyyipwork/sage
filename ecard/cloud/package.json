@@ -1,0 +1,25 @@
+{
+  "name": "sage-ecard-cloud",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SAGE E-Card 雲端後台 — Cloudflare Worker 後端與相關腳本",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "push": "wrangler deploy",
+    "tail": "wrangler tail",
+    "setup": "node scripts/deploy.js --check",
+    "wizard": "node scripts/deploy.js",
+    "login": "node scripts/login-helper.js",
+    "preflight": "node scripts/preflight.js",
+    "token": "node scripts/check-token.js",
+    "password": "node scripts/make-password.js",
+    "migrate": "node seed/migrate-local.js",
+    "migrate:local": "node seed/migrate-local.js --local",
+    "pull": "node scripts/kv-to-data.js",
+    "test": "node worker/test-local.mjs && node worker/test-kv-images.mjs",
+    "test:kv": "node worker/test-kv-images.mjs",
+    "test:browser": "node worker/test-browser.mjs"
+  }
+}

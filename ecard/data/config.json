@@ -20,19 +20,24 @@
     "url": "https://tobyyipwork.github.io",
     "basePath": "/sage/ecard/dist",
     "copyright": "© 2026 香港耆康老人福利會 版權所有",
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "qr": {
     "enabled": true,
     "mode": "static",
     "base": "",
     "path": "/r/{org}/{slug}",
+    "accordion": 1,
     "label": {
       "zh": "掃碼開啟名片",
       "cn": "扫码开启名片",
       "en": "Scan to open card"
     }
   },
-  "langs": ["zh", "cn", "en"],
+  "langs": [
+    "zh",
+    "cn",
+    "en"
+  ],
   "default_lang": "zh"
 }

@@ -1,0 +1,52 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "sage-ecard-api"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+# ── 變數（非機密，可直接寫在這裡）──────────────────────────────
+[vars]
+ORG_CODE = "sage"
+TOKEN_TTL_HOURS = "168"
+ROOT_ORIGIN = "*"
+# 前台重建節流視窗（分鐘）。Cloudflare Pages 免費版每月僅 500 次建置，
+# 連續編輯會合併成一次觸發，避免配額被迅速用完。設 0 等同不節流。
+BUILD_THROTTLE_MINUTES = "5"
+
+# ── KV：JSON 資料 + 圖片（必填）───────────────────────────────
+# 建立方式：  wrangler kv namespace create SAGE_ECARD_DATA
+# 然後把回傳的 id 貼到下面
+#
+# ⚠️ binding 必須是 "DATA"（程式碼讀取 env.DATA）。
+#    Cloudflare 儀表板範例寫的 "KV_BINDING" 只是範例名稱，照抄會讀不到資料。
+[[kv_namespaces]]
+binding = "DATA"
+id = "78100d9be89b4bccbde4b3cbbdd7a777"
+
+# ── R2：圖片儲存（選填，不需綁卡也能跑）───────────────────────
+#
+# 本專案支援兩種圖片儲存模式，由「有沒有 R2 綁定」自動判斷：
+#
+#   有 R2  → 圖片存 R2（需綁信用卡才能開通）
+#   無 R2  → 圖片以 base64 存進同一組 KV（不需綁卡、零額外設定）
+#
+# 免費額度對比（本專案 300 人規模）：
+#   KV 模式  1000 寫入/日、100,000 讀取/日、單值上限 25MB
+#            → 每人 3 張圖 × 300 人 = 900 次寫入，一次建檔約用掉一天配額
+#            → 之後只有換圖才寫入，日常編輯完全不寫圖片，餘裕充足
+#   R2 模式  10GB 儲存、零流量費，且不佔 KV 寫入配額
+#
+# 若日後想改用 R2，取消下面註解、執行 wrangler r2 bucket create，
+# 再重新 deploy 即可 — 程式碼一行都不用改。
+#
+# [[r2_buckets]]
+# binding = "IMAGES"
+# bucket_name = "sage-ecard-images"
+
+# ── 機密（用指令設定，不要寫在檔案裡）─────────────────────────
+#   wrangler secret put ADMIN_PASSWORD_HASH
+#   wrangler secret put TOKEN_SECRET
+#   wrangler secret put PAGES_DEPLOY_HOOK      （選填，第二階段才需要）
+#
+# ADMIN_PASSWORD_HASH 產生方式：
+#   node cloud/scripts/make-password.js "你的密碼"

@@ -13,3 +13,16 @@ admin/.cache/
 .playwright-cli/
 form.yaml
 *.tmp
+
+# cloud (Cloudflare Worker)
+cloud/node_modules/
+cloud/.wrangler/
+cloud/.tmp-migrate.json
+cloud/worker/.syntax-tmp/
+.dev.vars
+.dev.vars.*
+.wrangler/
+
+# 測試過程的截圖（test-browser.mjs 產出，路徑隨執行目錄而異）
+cloud-admin-*.png
+test-*.png

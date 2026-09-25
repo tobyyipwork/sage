@@ -1,12 +1,32 @@
 {
   "name": "sage-ecard",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "香港耆康老人福利會 電子名片生成器與本地後台管理",
+  "description": "香港耆康老人福利會 電子名片生成器與後台管理",
   "scripts": {
     "build": "node build/build.js",
-    "admin": "node admin/server.js",
-    "start": "node admin/server.js"
+
+    "sync": "node cloud/scripts/kv-to-data.js && node build/build.js",
+    "fp": "node cloud/scripts/kv-fingerprint.js",
+    "fp:check": "node cloud/scripts/kv-fingerprint.js --check",
+
+    "cloud:setup": "node cloud/scripts/deploy.js --check",
+    "cloud:deploy": "node cloud/scripts/deploy.js",
+    "cloud:login": "node cloud/scripts/login-helper.js",
+    "cloud:preflight": "node cloud/scripts/preflight.js",
+    "cloud:token": "node cloud/scripts/check-token.js",
+    "cloud:password": "node cloud/scripts/make-password.js",
+    "cloud:migrate": "node cloud/seed/migrate-local.js",
+    "cloud:pull": "node cloud/scripts/kv-to-data.js",
+
+    "cloud:dev": "cd cloud/worker && wrangler dev",
+    "cloud:push": "cd cloud/worker && wrangler deploy",
+    "cloud:tail": "cd cloud/worker && wrangler tail",
+
+    "cloud:test": "node cloud/worker/test-local.mjs && node cloud/worker/test-kv-images.mjs && node cloud/worker/test-ci-path.mjs",
+    "cloud:test:kv": "node cloud/worker/test-kv-images.mjs",
+    "cloud:test:ci": "node cloud/worker/test-ci-path.mjs",
+    "cloud:test:browser": "node cloud/worker/test-browser.mjs"
   },
   "engines": {
     "node": ">=18"

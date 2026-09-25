@@ -7,7 +7,10 @@
     "cn": "李小华",
     "en": "Lee Siu Wah"
   },
-  "n": { "family": "Lee", "given": "Siu Wah" },
+  "n": {
+    "family": "Lee",
+    "given": "Siu Wah"
+  },
   "title": {
     "zh": "示範用戶",
     "cn": "示范用户",
@@ -24,13 +27,21 @@
   "social_links": [],
   "custom_links": [
     {
-      "title": { "zh": "機構網站", "cn": "机构网站", "en": "Official Site" },
+      "title": {
+        "zh": "機構網站",
+        "cn": "机构网站",
+        "en": "Official Site"
+      },
       "url": "https://www.sage.org.hk",
       "icon": "globe",
       "color": "#9b4c8b"
     },
     {
-      "title": { "zh": "聯絡我們", "cn": "联系我们", "en": "Contact Us" },
+      "title": {
+        "zh": "聯絡我們",
+        "cn": "联系我们",
+        "en": "Contact Us"
+      },
       "url": "https://www.sage.org.hk/tc/contact_us",
       "icon": "building",
       "color": "#2563eb"
