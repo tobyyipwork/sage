@@ -24,6 +24,7 @@ import { createHash } from 'node:crypto';
 import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { assertRemoteKvReady, findWorkingWrangler, EnvError } from './env-utils.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
 const TOML = join(ROOT, 'cloud', 'worker', 'wrangler.toml');
@@ -56,7 +57,6 @@ const namespaceIdFromToml = () => {
   return '';
 };
 
-/* ---------- KV 讀取（REST 優先，其次 wrangler） ---------- */
 const makeKvGet = () => {
   if (TOKEN && ACCOUNT_ID) {
     const nsId = namespaceIdFromToml();
@@ -74,33 +74,33 @@ const makeKvGet = () => {
     };
   }
 
-  // wrangler fallback
-  const localBin = join(ROOT, 'cloud', 'worker', 'node_modules', '.bin', 'wrangler');
-  const WR = (process.env.WRANGLER_BIN && existsSync(process.env.WRANGLER_BIN))
-    ? { cmd: process.env.WRANGLER_BIN, prefix: [] }
-    : (existsSync(localBin) || existsSync(localBin + '.cmd'))
-      ? { cmd: localBin, prefix: [] }
-      : { cmd: 'npx', prefix: ['--yes', 'wrangler@4'] };
-
+  const candidates = findWorkingWrangler(ROOT);
   return async (key) => {
-    const cmd = [...WR.prefix, 'kv', 'key', 'get', key, '--binding', 'DATA', '--text', '--remote'];
-    try {
-      const out = execFileSync(WR.cmd, cmd, {
-        cwd: join(ROOT, 'cloud', 'worker'),
-        stdio: ['ignore', 'pipe', 'pipe'],
-        encoding: 'utf8',
-        shell: process.platform === 'win32',
-        maxBuffer: 32 * 1024 * 1024,
-      });
-      const trimmed = out.trim();
-      const start = trimmed.search(/[[{]/);
-      if (start === -1) return null;
-      return JSON.parse(trimmed.slice(start));
-    } catch (e) {
-      const msg = String(e.stderr || e.message);
-      if (/not found|404|does not exist/i.test(msg)) return null;
-      throw e;
+    let lastErr;
+    for (const WR of candidates) {
+      const cmd = [...WR.prefix, 'kv', 'key', 'get', key, '--binding', 'DATA', '--text', '--remote'];
+      try {
+        const out = execFileSync(WR.cmd, cmd, {
+          cwd: join(ROOT, 'cloud', 'worker'),
+          stdio: ['ignore', 'pipe', 'pipe'],
+          encoding: 'utf8',
+          shell: process.platform === 'win32',
+          maxBuffer: 32 * 1024 * 1024,
+        });
+        const trimmed = out.trim();
+        const start = trimmed.search(/[[{]/);
+        if (start === -1) return null;
+        return JSON.parse(trimmed.slice(start));
+      } catch (e) {
+        const msg = String(e.stderr || e.message);
+        // key 不存在是正常結果，不需換候選
+        if (/not found|404|does not exist/i.test(msg)) return null;
+        lastErr = e;
+        // 這個 wrangler 壞了，試下一個
+        continue;
+      }
     }
+    throw lastErr || new Error('找不到可用的 wrangler');
   };
 };
 
@@ -110,6 +110,24 @@ const stable = (v) => {
   if (Array.isArray(v)) return v.map(stable);
   return Object.keys(v).sort().reduce((acc, k) => { acc[k] = stable(v[k]); return acc; }, {});
 };
+
+/* ---------- 環境檢查：缺憑證時以 exit 2 失敗 ----------
+ * exit code 契約（呼叫端依此分流，不可混淆）：
+ *   0 = 資料未變更
+ *   1 = 資料有變更
+ *   2 = 環境／憑證問題 — 絕不可被當成「資料有變更」
+ */
+try {
+  assertRemoteKvReady({ token: TOKEN, accountId: ACCOUNT_ID, local: false });
+} catch (e) {
+  if (e instanceof EnvError) {
+    console.error('');
+    e.lines.forEach((l) => console.error(l));
+    console.error('');
+    process.exit(2);
+  }
+  throw e;
+}
 
 /* ---------- 主流程 ---------- */
 const kvGet = makeKvGet();
@@ -165,7 +183,6 @@ if (CHECK) {
   console.log(`  資料已變更：${prev.slice(0, 12)}… → ${hash.slice(0, 12)}…`);
   process.exit(1);
 }
-
 if (WRITE) {
   writeFileSync(FP_FILE, hash + '\n', 'utf8');
   console.log(`  ✓ 已寫入指紋：${hash}`);

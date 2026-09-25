@@ -34,10 +34,43 @@ const run = (args, env) => {
 
 console.log('\n=== CI 路徑（REST 模式）邏輯驗證 ===\n');
 
-// 1. 有 token 但缺 account id → 應走 wrangler fallback 或報錯，不應誤判
+// 0. 完全無憑證時，必須以 exit 2 失敗（區別於「資料有變更」的 exit 1）
+//    這個區別很重要：workflow 若把 exit 2 誤判成「有變更」，
+//    憑證設錯就會看起來像資料變動，非常難排查。
+{
+  const r = run([], {
+    CLOUDFLARE_API_TOKEN: '',
+    CLOUDFLARE_ACCOUNT_ID: '',
+    APPDATA: '/nonexistent-appdata-for-test',
+    HOME: '/nonexistent-home-for-test',
+  });
+  if (r.code === 2) {
+    ok('無憑證時以 exit 2 失敗（可與「資料變更」區分）');
+  } else {
+    bad(`無憑證時 exit code 應為 2，實際為 ${r.code}`);
+  }
+  const combined = r.out + r.err;
+  if (/CLOUDFLARE_API_TOKEN/.test(combined) && /CLOUDFLARE_ACCOUNT_ID/.test(combined)) {
+    ok('錯誤訊息指出需要哪兩個環境變數');
+  } else {
+    bad('錯誤訊息未指出所需環境變數');
+  }
+  if (/wrangler login/i.test(combined)) {
+    ok('同時提供本機替代方案（wrangler login）');
+  } else {
+    bad('未提供本機替代方案');
+  }
+}
+
+// 1. 有 token 但缺 account id → 不應誤判為「資料變更」
 {
   const r = run([], { CLOUDFLARE_API_TOKEN: 'x'.repeat(40), CLOUDFLARE_ACCOUNT_ID: '' });
   const combined = r.out + r.err;
+  if (r.code !== 1) {
+    ok(`缺 ACCOUNT_ID 時 exit=${r.code}（未誤判為資料變更）`);
+  } else {
+    bad('缺 ACCOUNT_ID 時誤判為資料變更（exit 1）');
+  }
   if (/ACCOUNT_ID|找不到|wrangler/i.test(combined) || r.code === 0) {
     ok('缺 ACCOUNT_ID 時有明確處理（不靜默失敗）');
   } else {

@@ -63,6 +63,20 @@ on:
 - 用穩定序列化（物件鍵排序）後取 SHA-256，避免鍵序不同造成「假變更」
 - 結果存於 repo 根目錄的 `.kv-fingerprint`
 
+### 三種結束碼（重要）
+
+`--check` 用結束碼表達結果，**這三個必須分清楚**：
+
+| 結束碼 | 意義 | workflow 的反應 |
+| --- | --- | --- |
+| `0` | 資料未變更 | 跳過重建 |
+| `1` | 資料有變更 | 開始重建 |
+| **`2`** | **環境／憑證問題** | **讓 workflow 失敗並提示檢查 Secrets** |
+
+> ⚠️ `2` 這個區分是必要的。若把憑證設定錯誤誤判成「資料有變更」，
+> 症狀會是「一直說有變更、一直重建，但前台內容根本沒動」，
+> 非常難聯想到是 token 問題。所以憑證不全時直接擋下、明確報錯。
+
 ### 避免衝突
 
 ```yaml
@@ -201,8 +215,25 @@ git push
 | `.github/workflows/auto-rebuild.yml` | 排程與流程定義 |
 | `cloud/scripts/kv-fingerprint.js` | 計算／比對資料指紋 |
 | `cloud/scripts/kv-to-data.js` | 從 KV 拉資料（支援 REST API 與 wrangler 兩種模式） |
+| `cloud/scripts/env-utils.mjs` | 共用：憑證檢查、尋找可用的 wrangler |
 | `build/build.js` | 產生靜態檔 |
 | `.kv-fingerprint` | 指紋儲存（自動維護，勿手動編輯） |
+
+### 關於 wrangler 的尋找邏輯
+
+本機執行時，`env-utils.mjs` 會依序嘗試：
+
+1. `WRANGLER_BIN` 環境變數指定的路徑
+2. `cloud/worker/node_modules/.bin/wrangler`（若已安裝）
+3. **npx 快取中「已具備原生模組」的 wrangler**（優先於重新下載）
+4. 最後才用 `npx wrangler@4` 現場下載
+
+第 3 點的用意：npx 快取若缺 `@cloudflare/workerd-*` 原生模組，
+執行時會噴出一大串 Node 堆疊訊息，難以判斷原因。
+先探測哪一份是完整的，就能避開這個坑。
+
+> 若遇到難以理解的 wrangler 錯誤，可先清快取重試：
+> `npx --yes wrangler@4 --version`（重新下載一份完整的）。
 
 ---
 

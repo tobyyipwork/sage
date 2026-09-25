@@ -52,17 +52,30 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          # 三種結果，必須分清楚：
+          #   0 → 資料未變更，可跳過
+          #   1 → 資料有變更，需重建
+          #   2 → 環境／憑證問題，必須讓 workflow 失敗（不可誤判為「有變更」）
           set +e
           output=$(node ecard/cloud/scripts/kv-fingerprint.js --check 2>&1)
           code=$?
           set -e
           echo "$output"
 
-          if [ $code -eq 0 ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+          case $code in
+            0)
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              ;;
+            1)
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::無法比對資料指紋（exit $code）— 通常是憑證問題，不是資料變更。"
+              echo "::error::請確認 CLOUDFLARE_API_TOKEN 與 CLOUDFLARE_ACCOUNT_ID 已正確設定，"
+              echo "::error::且 token 具備 Workers KV Storage Read 權限。"
+              exit 1
+              ;;
+          esac
 
       - name: 判斷是否需要重建
         id: decide

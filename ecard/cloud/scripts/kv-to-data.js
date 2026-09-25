@@ -28,6 +28,7 @@
 import { writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync, readFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { assertRemoteKvReady, findWorkingWrangler, EnvError } from './env-utils.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
 const DATA_DIR = join(ROOT, 'data');
@@ -91,45 +92,54 @@ const makeKvGetRest = () => {
 };
 
 /* ---------- 模式二：wrangler CLI ---------- */
-/** 依序找：環境變數指定 → 本地 node_modules → npx 快取中的 wrangler → npx */
-const resolveWrangler = () => {
-  if (process.env.WRANGLER_BIN && existsSync(process.env.WRANGLER_BIN)) {
-    return { cmd: process.env.WRANGLER_BIN, prefix: [] };
-  }
-  const local = join(ROOT, 'cloud', 'worker', 'node_modules', '.bin', 'wrangler');
-  if (existsSync(local) || existsSync(local + '.cmd')) return { cmd: local, prefix: [] };
-  return { cmd: 'npx', prefix: ['--yes', 'wrangler@4'] };
-};
-
 const makeKvGetWrangler = () => {
-  const WRANGLER = resolveWrangler();
-  return (key) => {
-    const cmd = [...WRANGLER.prefix, 'kv', 'key', 'get', key, '--binding', 'DATA', '--text'];
-    // wrangler 4：不指定 --local 時預設讀「本機模擬 KV」，必須明確加 --remote
-    cmd.push(IS_LOCAL ? '--local' : '--remote');
-    try {
-      const out = execFileSync(WRANGLER.cmd, cmd, {
-        cwd: join(ROOT, 'cloud', 'worker'),
-        stdio: ['ignore', 'pipe', 'pipe'],
-        encoding: 'utf8',
-        shell: process.platform === 'win32',
-        maxBuffer: 32 * 1024 * 1024,
-      });
-      // wrangler 有時會在輸出前後加提示行，取第一個看起來像 JSON 的區塊
-      const trimmed = out.trim();
-      const start = trimmed.search(/[[{]/);
-      if (start === -1) return null;
-      return JSON.parse(trimmed.slice(start));
-    } catch (e) {
-      const msg = String(e.stderr || e.message);
-      if (/not found|404|does not exist/i.test(msg)) return null;
-      throw e;
+  const candidates = findWorkingWrangler(ROOT);
+  return async (key) => {
+    let lastErr;
+    for (const WR of candidates) {
+      const cmd = [...WR.prefix, 'kv', 'key', 'get', key, '--binding', 'DATA', '--text'];
+      // wrangler 4：不指定 --local 時預設讀「本機模擬 KV」，必須明確加 --remote
+      cmd.push(IS_LOCAL ? '--local' : '--remote');
+      try {
+        const out = execFileSync(WR.cmd, cmd, {
+          cwd: join(ROOT, 'cloud', 'worker'),
+          stdio: ['ignore', 'pipe', 'pipe'],
+          encoding: 'utf8',
+          shell: process.platform === 'win32',
+          maxBuffer: 32 * 1024 * 1024,
+        });
+        // wrangler 有時會在輸出前後加提示行，取第一個看起來像 JSON 的區塊
+        const trimmed = out.trim();
+        const start = trimmed.search(/[[{]/);
+        if (start === -1) return null;
+        return JSON.parse(trimmed.slice(start));
+      } catch (e) {
+        const msg = String(e.stderr || e.message);
+        if (/not found|404|does not exist/i.test(msg)) return null;
+        lastErr = e;
+        continue;   // 這個 wrangler 壞了，試下一個
+      }
     }
+    throw lastErr || new Error('找不到可用的 wrangler');
   };
 };
 
-/* ---------- 選模式 ---------- */
+/* ---------- 選模式（並檢查前置條件） ---------- */
 const useRest = FORCE_REST || (!FORCE_WRANGLER && !IS_LOCAL && !!TOKEN);
+
+try {
+  assertRemoteKvReady({ token: TOKEN, accountId: ACCOUNT_ID, local: IS_LOCAL });
+} catch (e) {
+  if (e instanceof EnvError) {
+    console.error('');
+    e.lines.forEach((l) => console.error(l));
+    console.error('');
+    // exit 2 = 環境／憑證問題，與其他失敗區分
+    process.exit(2);
+  }
+  throw e;
+}
+
 const kvGet = useRest ? makeKvGetRest() : makeKvGetWrangler();
 
 const MODE_LABEL = useRest
