@@ -294,7 +294,54 @@ gh api repos/tobyyipwork/sage/contents/ecard/.keepalive \
 | `git push` 失敗 | 分支保護規則 | 確認 `main` 允許 Actions 推送 |
 | 排程沒在準點執行 | GitHub 排程本就有數分鐘延遲 | 正常現象，非故障 |
 | **排程完全沒動靜（run 數為 0）** | 可能是被 60 天規則停用 | `gh workflow enable auto-rebuild.yml` |
-| **改了 cron 但一直沒觸發** | 排程註冊有延遲，且不回溯 | 等下一個觸發點；必要時先 `gh workflow run` 手動驗證 |
+| **改了 cron 但一直沒觸發** | 排程註冊有延遲，且不回溯 | 見下方「排程註冊延遲」說明 |
+
+### 排程註冊延遲（本專案實際踩過的坑）
+
+**症狀**：workflow 檔案正確、`state: active`、檔案在 `main`、`workflow_dispatch` 手動執行正常，
+但 `event=schedule` 的執行次數**始終為 0**，等了一兩個小時也沒動靜。
+
+**原因**：GitHub 的排程註冊器不是即時生效的。實測與社群回報一致：
+
+- 新增或**修改** cron 後，GitHub 需要 **15 分鐘到 1 小時以上**才會識別
+- 識別後，**第一次執行只會發生在「識別完成後的下一個排程時點」**
+- 在第一次成功執行之前，**Actions 頁面只會顯示 `workflow_dispatch`，完全看不到 schedule**
+  —— 這會讓人誤以為排程沒設定成功
+
+**一個容易誤判的線索**：用 API 看 workflow 的 `updated_at`：
+
+```bash
+gh api repos/tobyyipwork/sage/actions/workflows/auto-rebuild.yml \
+  --jq '{state, created_at, updated_at}'
+```
+
+若 `updated_at` 停在「檔案首次建立」的時間、沒有跟著 cron 修改而變動，
+代表排程器還停留在舊版本。**注意：這是觀察用的線索，不是可靠的判斷依據** ——
+實測發現純 cron 修改不一定會更新這個時間戳，所以不能只看它下結論。
+
+**解法**：對 default branch 做一次無害的 commit（俗稱 trivial commit），
+可以催促 GitHub 重新評估並同步排程：
+
+```bash
+git commit --allow-empty -m "chore: 重新同步排程" && git push
+```
+
+或直接跑一次保活 workflow（它本來就會 commit）：
+
+```bash
+gh workflow run keepalive.yml
+```
+
+**驗證方式**：等跨越至少一個排程時點後，確認 schedule 執行出現：
+
+```bash
+gh api "repos/tobyyipwork/sage/actions/runs?per_page=100" \
+  --jq '[.workflow_runs[] | select(.event=="schedule")] | length'
+```
+
+> ⚠️ 這個延遲是 GitHub 平台行為，**不是設定錯誤**。
+> 若已等待超過數小時仍完全沒有 schedule 執行，才需要進一步排查
+> （檢查是否被 60 天規則停用、或 repo 是否為 public）。
 
 ### 手動救援
 
