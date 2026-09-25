@@ -1,0 +1,89 @@
+name: 排程保活
+
+# 為什麼需要這支 workflow？
+#
+# GitHub 官方規定：
+#   "In a public repository, scheduled workflows are automatically disabled
+#    when no repository activity has occurred in 60 days."
+#   （公開倉庫若 60 天內沒有任何倉庫活動，排程工作流程會被自動停用）
+#
+# 這個 repo 是公開的，而名片資料本來就是低頻變更 ——
+# 兩個月沒改名片是很正常的事。一旦 60 天沒有 push，
+# 「自動重建名片前台」的排程就會被 GitHub 靜默停用，
+# 而且不會發任何通知。等到某天你真的改了名片，
+# 會發現前台一直沒更新，卻不知道原因。
+#
+# 這支 workflow 就是為此而存在：每個月自動更新一個時間戳檔案並提交，
+# 讓倉庫永遠保持「有活動」的狀態，排程就不會被停用。
+#
+# 它不碰任何名片資料，只動 ecard/.keepalive 這一個檔案。
+#
+# 註：排程抓在每月 1 號 03:17（UTC），刻意避開整點高負載時段。
+#     一個月一次已經非常足夠 —— 只要間隔遠小於 60 天即可。
+
+on:
+  schedule:
+    # 【驗證中】暫時每 5 分鐘，用來確認排程機制真的會觸發。
+    # 驗證通過後會改回每月一次：'17 3 1 * *'
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+# 只需要讀取程式碼 + 能夠推送 commit
+permissions:
+  contents: write
+
+# 避免與自動重建同時 push 造成衝突
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 取出程式碼
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 更新保活時間戳
+        run: |
+          mkdir -p ecard
+          stamp=$(date -u '+%Y-%m-%d %H:%M UTC')
+          {
+            echo "此檔案僅用於維持 GitHub 排程運作，請勿刪除。"
+            echo ""
+            echo "目的：公開倉庫若 60 天沒有任何活動，GitHub 會自動停用排程工作流程。"
+            echo "      這支保活 workflow 每月更新此檔案一次，確保排程持續有效。"
+            echo "      詳見 .github/workflows/keepalive.yml 的說明。"
+            echo ""
+            echo "最後更新：${stamp}"
+          } > ecard/.keepalive
+
+          echo "→ 已更新時間戳：${stamp}"
+
+      - name: 提交並推送
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add ecard/.keepalive
+
+          if git diff --cached --quiet; then
+            echo "→ 時間戳沒有變化（同月重複執行），不產生 commit"
+            exit 0
+          fi
+
+          stamp=$(date -u '+%Y-%m-%d %H:%M UTC')
+          git commit -m "chore(keepalive): 維持排程有效（${stamp}）"
+          git push
+          echo "→ 已推送，倉庫活動已更新，排程不會被停用"
+
+      - name: 失敗通知
+        if: failure()
+        run: |
+          echo "::error::保活任務失敗。若持續失敗，排程可能因 60 天無活動而被停用。"
+          echo "::error::請確認 workflow 具有 contents: write 權限，"
+          echo "::error::且 repo 的 Settings → Actions → General 允許 Actions 建立 commit。"
