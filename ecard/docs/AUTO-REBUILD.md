@@ -30,12 +30,27 @@
 ```yaml
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    # 每 15 分鐘，但刻意錯開整點（見下方說明）
+    - cron: '4,19,34,49 * * * *'
   workflow_dispatch:      # 也可手動觸發
 ```
 
 選這個方案的原因：**感應器在雲端，你的電腦完全不需要開著**。
 失敗時有完整日誌可查，不會像本機常駐程式那樣靜默停擺而你不知道。
+
+#### 為什麼不寫 `*/15 * * * *`
+
+GitHub 官方文件明講：
+
+> "The `schedule` event can be delayed during periods of high loads of GitHub
+> Actions workflow runs. **High load times include the start of every hour.**
+> If the load is sufficiently high enough, some queued jobs may be dropped."
+
+`*/15` 會落在 `:00 / :15 / :30 / :45` —— 其中 `:00` 正好是官方點名的整點高負載時段，
+排程可能延遲甚至被**直接丟棄**。因此偏移 4 分鐘，改為 `:04 / :19 / :34 / :49`。
+
+> 註：GitHub 排程**無法回溯**。改動 cron 後不會補跑過去漏掉的時段，
+> 只從推送時間點之後的下一個時點開始生效。改完請耐心等下一個觸發點。
 
 ### 關鍵設計：先比對「資料指紋」，有變才重建
 
@@ -185,6 +200,89 @@ npm run sync
 
 ---
 
+## 五之二、排程保活（重要，否則 60 天後會靜默失效）
+
+### 問題
+
+GitHub 官方規定：
+
+> "In a public repository, scheduled workflows are automatically disabled
+> when no repository activity has occurred in 60 days."
+
+**這個 repo 是公開的**，所以這條規則適用。而問題在於：
+
+1. **名片是低頻變更的資料** —— 兩個月沒改名片非常正常。
+2. 沒有 commit 就沒有「倉庫活動」。
+3. 60 天後，GitHub **靜默停用**排程 —— **不會發任何通知**。
+4. 等到某天你真的改了名片，會發現前台一直沒更新，
+   卻完全不知道是排程早就被關掉了。
+
+> 注意官方用詞是 "repository activity"，**不是** "workflow execution"。
+> 也就是說「排程有在跑」本身不算活動；要有 push／commit／PR 之類的倉庫異動才算。
+> 而資料沒變時，本機制刻意不產生 commit —— 這正好會累積成 60 天空窗。
+
+### 解法：`.github/workflows/keepalive.yml`
+
+一支獨立的保活 workflow，**每月 1 號自動更新一個時間戳檔案並提交**：
+
+```
+.github/workflows/keepalive.yml   →   每 1 號 03:17 UTC
+  └─ 更新 ecard/.keepalive（寫入當下時間）
+       └─ git commit + push       →   倉庫保持「有活動」→ 排程永不被停用
+```
+
+**它不碰任何名片資料**，只動 `ecard/.keepalive` 這一個檔案。
+
+| 項目 | 設定 |
+| --- | --- |
+| 頻率 | 每月 1 次（`17 3 1 * *`） |
+| 動到的檔案 | 只有 `ecard/.keepalive` |
+| 影響名片 | 無 |
+| 費用 | 公開 repo，免費 |
+
+一個月一次已經綽綽有餘 —— 只要間隔遠小於 60 天即可。
+選在 03:17 也是刻意避開整點高負載時段。
+
+### 為什麼不用外部 cron 服務
+
+另一條路是用 cron-job.org 之類的免費服務定期打 `workflow_dispatch` API，
+完全繞過 GitHub 的 60 天規則。但代價是：
+
+- 多一個外部依賴，多一個會壞的環節
+- 要額外保管一組 GitHub PAT，並且定期輪替
+- 設定散在兩個平台，日後維護要記兩件事
+
+保活 workflow 的優點是**把問題消滅而不是管理它**，
+而且所有設定都留在同一個 repo 裡。
+
+### 如果哪天真的被停用了
+
+不用慌，手動啟用即可：
+
+```bash
+gh workflow enable auto-rebuild.yml     # 或到 Actions 頁面點「Enable workflow」
+```
+
+啟用後排程會恢復，但**不會補跑**停用期間的時段 ——
+若剛好有資料變更，手動觸發一次即可補上：
+
+```bash
+gh workflow run auto-rebuild.yml
+```
+
+### 怎麼確認保活有在運作
+
+```bash
+# 看保活 workflow 的執行紀錄
+gh run list --workflow=keepalive.yml
+
+# 看 .keepalive 最後更新時間
+gh api repos/tobyyipwork/sage/contents/ecard/.keepalive \
+  --jq '.content' | base64 -d | tail -2
+```
+
+---
+
 ## 六、疑難排解
 
 | 症狀 | 原因 | 解法 |
@@ -195,6 +293,8 @@ npm run sync
 | 建置成功但前台沒變 | GitHub Pages 尚未部署完 | 等 1–2 分鐘；檢查 Pages 是否正常 |
 | `git push` 失敗 | 分支保護規則 | 確認 `main` 允許 Actions 推送 |
 | 排程沒在準點執行 | GitHub 排程本就有數分鐘延遲 | 正常現象，非故障 |
+| **排程完全沒動靜（run 數為 0）** | 可能是被 60 天規則停用 | `gh workflow enable auto-rebuild.yml` |
+| **改了 cron 但一直沒觸發** | 排程註冊有延遲，且不回溯 | 等下一個觸發點；必要時先 `gh workflow run` 手動驗證 |
 
 ### 手動救援
 
@@ -213,11 +313,13 @@ git push
 | 檔案 | 作用 |
 | --- | --- |
 | `.github/workflows/auto-rebuild.yml` | 排程與流程定義 |
+| `.github/workflows/keepalive.yml` | 每月保活，避免 60 天無活動被停用 |
 | `cloud/scripts/kv-fingerprint.js` | 計算／比對資料指紋 |
 | `cloud/scripts/kv-to-data.js` | 從 KV 拉資料（支援 REST API 與 wrangler 兩種模式） |
 | `cloud/scripts/env-utils.mjs` | 共用：憑證檢查、尋找可用的 wrangler |
 | `build/build.js` | 產生靜態檔 |
 | `.kv-fingerprint` | 指紋儲存（自動維護，勿手動編輯） |
+| `ecard/.keepalive` | 保活時間戳（自動維護，勿刪除） |
 
 ### 關於 wrangler 的尋找邏輯
 
