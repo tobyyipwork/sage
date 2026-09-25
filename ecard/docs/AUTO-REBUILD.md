@@ -343,6 +343,52 @@ gh api "repos/tobyyipwork/sage/actions/runs?per_page=100" \
 > 若已等待超過數小時仍完全沒有 schedule 執行，才需要進一步排查
 > （檢查是否被 60 天規則停用、或 repo 是否為 public）。
 
+### 🔴 已知問題：本 repo 的排程從未成功觸發
+
+**狀態：未解決（2026-09-25 記錄）**
+
+**現象**：workflow 設定全部正確，但 `event=schedule` 的執行次數**始終為 0**。
+
+**已驗證排除的原因**（每一項都實際查過，不是推測）：
+
+| 可能原因 | 檢查結果 |
+| --- | --- |
+| workflow 不在 default branch | 在 `main`，本地與遠端一致 |
+| workflow 被停用 | `state: active` |
+| Actions 被禁用 | `enabled: true`, `allowed_actions: "all"` |
+| repo 是 private | `visibility: PUBLIC` |
+| 帳號過新（anti-abuse 限制） | 帳號建立於 2023-09，已滿 3 年 |
+| repo 是 fork | `fork: false` |
+| 60 天無活動停用 | repo 才建立一週 |
+| GitHub 平台事故 | 查 status API，當時無事故 |
+| cron 語法錯誤 | 5 欄位格式正確 |
+| 整點高負載被丟棄 | 已改為 `4,19,34,49` 再測，仍為 0 |
+| 註冊需要等待 | 等超過 2.5 小時、跨越 12 個觸發點，仍為 0 |
+
+**決定性對照實驗**：把一支**全新**的 workflow cron 設為 `*/5 * * * *`（每 5 分鐘，
+合法 cron 的最高頻率），等 8 分鐘跨越 2 個觸發點 → **執行次數仍為 0**。
+連全新檔案 + 最高頻設定都不觸發，因此可確認**問題出在帳號／repo 層級，
+而非任何設定錯誤**。
+
+**目前因應方式**：手動觸發。
+
+```bash
+gh workflow run auto-rebuild.yml
+```
+
+`workflow_dispatch` 完全正常，所以自動重建的**功能本身沒問題**，
+只是「自動」這個環節暫時無法依靠 GitHub 排程。
+
+**可能的後續處理**：
+1. 向 GitHub Support 提報（需要帳號有 Support 存取權）
+2. 改用外部排程服務（cron-job.org、EventBridge Scheduler）打 `workflow_dispatch` API
+   —— 這也正是「方案 B」，能同時繞過 60 天停用限制
+3. 定期觀察 GitHub 是否自行恢復
+
+> 註：社群案例 [github/community#205984](https://github.com/orgs/community/discussions/205984)
+> 症狀完全相同（public repo、dispatch 正常、schedule 恆為 0），
+> 該案作者推測是新帳號限制，但本案帳號已 3 年，不適用同一結論。
+
 ### 手動救援
 
 若自動流程卡住，本地這樣做即可：
