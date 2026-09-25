@@ -202,9 +202,12 @@ console.log(c.bold('  步驟 3／6　設定 secrets'));
 const secretList = wrangler(['secret', 'list'], { quiet: true, allowFail: true });
 const hasHash = /ADMIN_PASSWORD_HASH/.test(secretList.out);
 const hasToken = /TOKEN_SECRET/.test(secretList.out);
+const hasGhRepo = /GITHUB_REPO/.test(secretList.out);
+const hasGhDispatch = /GITHUB_DISPATCH_TOKEN/.test(secretList.out);
 
 if (hasHash) console.log(c.ok('ADMIN_PASSWORD_HASH 已設定'));
 if (hasToken) console.log(c.ok('TOKEN_SECRET 已設定'));
+if (hasGhRepo && hasGhDispatch) console.log(c.ok('後台一鍵重建（GITHUB_REPO + GITHUB_DISPATCH_TOKEN）已設定'));
 
 if (!CHECK_ONLY && (!hasHash || !hasToken)) {
   console.log('');
@@ -242,6 +245,59 @@ if (!CHECK_ONLY && (!hasHash || !hasToken)) {
       console.log(c.bad('設定失敗'));
       console.log(c.dim(r.out.slice(0, 300)));
       problems++;
+    }
+  }
+
+  /* ── 後台一鍵重建（選填，但強烈建議） ──
+     沒有這兩個，後台改完資料不會自動／手動觸發前台更新，
+     只能等排程（而本 repo 的排程目前從未成功觸發過）。 */
+  if (!hasGhRepo || !hasGhDispatch) {
+    console.log('');
+    console.log('  ' + c.bold('後台一鍵重建（選填，建議設定）'));
+    console.log(c.dim('  設定後，後台就能直接觸發前台重建，不必等排程。'));
+    console.log(c.dim('  需要一個 fine-grained token：'));
+    console.log(c.dim('    https://github.com/settings/personal-access-tokens/new'));
+    console.log(c.dim('    → Repository access 只勾 sage'));
+    console.log(c.dim('    → Permissions: Actions = Read and write（其他都不用給）'));
+    console.log('');
+
+    const wantGh = await ask('  現在設定嗎？（y／Enter 跳過）：');
+
+    if (wantGh !== 'y') {
+      console.log(c.warn('跳過 — 後台將無法觸發重建，只能等排程'));
+      console.log(c.dim('    可稍後補上：npm run cloud:setup 會再問一次'));
+    } else {
+      if (!hasGhRepo) {
+        const repoAns = await ask('  GITHUB_REPO（格式 擁有者/倉庫，例如 tobyyipwork/sage）：');
+        if (repoAns && repoAns !== 'y' && /^[^/\s]+\/[^/\s]+$/.test(repoAns)) {
+          const r = putSecret('GITHUB_REPO', repoAns);
+          if (r.ok) console.log(c.ok(`GITHUB_REPO 已設定（${repoAns}）`));
+          else { console.log(c.bad('GITHUB_REPO 設定失敗')); console.log(c.dim(r.out.slice(0, 300))); problems++; }
+        } else if (repoAns && repoAns !== 'y') {
+          console.log(c.warn('格式錯誤，應為「擁有者/倉庫」，已跳過'));
+          problems++;
+        }
+      } else {
+        console.log(c.ok('GITHUB_REPO 已設定'));
+      }
+
+      if (!hasGhDispatch) {
+        console.log(c.dim('    接著會請你貼上 token（輸入時畫面不會顯示，這是正常的）'));
+        const tokAns = await ask('  GITHUB_DISPATCH_TOKEN（貼上 github_pat_... 後按 Enter）：');
+        if (tokAns && tokAns !== 'y' && /^github_pat_/.test(tokAns)) {
+          const r = putSecret('GITHUB_DISPATCH_TOKEN', tokAns);
+          if (r.ok) console.log(c.ok('GITHUB_DISPATCH_TOKEN 已設定'));
+          else { console.log(c.bad('GITHUB_DISPATCH_TOKEN 設定失敗')); console.log(c.dim(r.out.slice(0, 300))); problems++; }
+        } else if (tokAns && tokAns !== 'y') {
+          console.log(c.warn('看起來不是 fine-grained token（應以 github_pat_ 開頭），已跳過'));
+          console.log(c.dim('    注意：舊式 ghp_ 開頭的 token 不支援 workflow_dispatch'));
+          problems++;
+        } else {
+          console.log(c.warn('未輸入 token，已跳過'));
+        }
+      } else {
+        console.log(c.ok('GITHUB_DISPATCH_TOKEN 已設定'));
+      }
     }
   }
 }
