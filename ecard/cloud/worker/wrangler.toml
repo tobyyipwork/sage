@@ -13,6 +13,19 @@ ROOT_ORIGIN = "*"
 # 連續編輯會合併成一次觸發，避免配額被迅速用完。設 0 等同不節流。
 BUILD_THROTTLE_MINUTES = "5"
 
+# 重建模式：決定「儲存資料時要不要順手觸發前台重建」。
+#
+#   "auto"   （預設）所有異動端點寫入後自動觸發。
+#            適合「一次只改一兩張、改完就走」的使用習慣。
+#   "manual" 異動端點只存資料並提示，只有後台
+#            「⟳ 立即重建前台」按鈕會真的觸發。
+#            適合「批次更新、追求確定性」——全部改完按一次。
+#
+# 兩種模式都保留同一個手動按鈕，差別只在儲存時要不要自動觸發。
+# 切換方式：改這一行 → wrangler deploy。不需改任何程式碼。
+# 注意：打錯字（非 "manual"）一律視為 "auto"，避免誤觸靜音。
+AUTO_REBUILD_MODE = "auto"
+
 # ── KV：JSON 資料 + 圖片（必填）───────────────────────────────
 # 建立方式：  wrangler kv namespace create SAGE_ECARD_DATA
 # 然後把回傳的 id 貼到下面
@@ -51,6 +64,9 @@ id = "78100d9be89b4bccbde4b3cbbdd7a777"
 #   GITHUB_REPO 不是機密，但放 secret 可與 token 一起管理，較不易漏設。
 #   wrangler secret put GITHUB_REPO            例：tobyyipwork/sage
 #   wrangler secret put GITHUB_DISPATCH_TOKEN  fine-grained PAT
+#
+# 重建模式由上面的 AUTO_REBUILD_MODE 控制（auto / manual）。
+# 設為 manual 時，下列兩個 secret 仍需要 —— 手動按鈕一樣要走 GitHub API。
 #
 # GITHUB_DISPATCH_TOKEN 權限要求（最小權限原則）：
 #   Fine-grained token → Repository access 只選 sage 這一個 repo

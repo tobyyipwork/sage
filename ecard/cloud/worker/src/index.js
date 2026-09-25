@@ -22,15 +22,22 @@
  *
  * ── 自動重建 ───────────────────────────────────────────────
  *
- * 所有會改動名片資料的端點（新增／修改／刪除名片、改機構設定、
- * 上傳／刪除圖片）都會在寫入完成後自動觸發前台重建，
- * 回應中附帶一個 rebuild 欄位說明觸發結果：
+ * 行為由環境變數 AUTO_REBUILD_MODE 決定（預設 "auto"）：
  *
- *   { configured: true,  triggered: true  }   已通知 GitHub 開始重建
- *   { configured: true,  triggered: false, throttled: true }  節流合併，稍後才生效
- *   { configured: false, ... }                未設定，需手動或等排程
+ *   auto    所有會改動名片資料的端點（新增／修改／刪除名片、改機構設定、
+ *           上傳／刪除圖片）都會在寫入完成後自動觸發前台重建。
+ *   manual  這些端點只存資料，不觸發；只有 POST /api/build
+ *           （後台「⟳ 立即重建前台」按鈕）會觸發。
  *
- * 需要的環境變數：GITHUB_REPO、GITHUB_DISPATCH_TOKEN（詳見 src/github.js）
+ * 兩種模式下，回應都附帶一個 rebuild 欄位說明結果：
+ *
+ *   { mode:'auto',   configured:true,  triggered:true  }  已通知 GitHub 開始重建
+ *   { mode:'auto',   configured:true,  triggered:false, throttled:true }  節流合併，稍後才生效
+ *   { mode:'manual', manual:true,      triggered:false }  請按按鈕（刻意不觸發）
+ *   { configured:false, ... }                             未設定，需手動或等排程
+ *
+ * 需要的環境變數：GITHUB_REPO、GITHUB_DISPATCH_TOKEN、AUTO_REBUILD_MODE
+ * （詳見 src/github.js 與 wrangler.toml）
  *
  * 部署： wrangler deploy
  */
@@ -39,7 +46,7 @@ import { authenticate, issueToken, verifyLogin } from './auth.js';
 import { createStorage, mimeFor } from './storage.js';
 import { sanitizeStaff } from './staff-schema.js';
 import { handleRedirect } from './redirect.js';
-import { dispatchStatus, triggerRebuild, latestRun } from './github.js';
+import { dispatchStatus, triggerRebuild, latestRun, rebuildMode } from './github.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 單張圖片 5MB
 
@@ -70,9 +77,30 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 單張圖片 5MB
  * 節流狀態記在 KV 而非記憶體 —— 記憶體版在多個 isolate 間不共用，
  * 會各自計時而失效。
  *
+ * ── AUTO_REBUILD_MODE = "manual" 時 ──────────────────────
+ *
+ * 若設為 manual，異動端點呼叫本函式時會直接回報「請按按鈕」，
+ * 不觸發、也不佔用節流視窗（因為根本沒觸發，沒有節流可言）。
+ * 手動按鈕走 POST /api/build 並帶 force，仍會正常觸發。
+ *
  * @returns {object} 結構化結果，供 API 回應與前端顯示
  */
 const runRebuild = async (storage, env, { force = false } = {}) => {
+  const mode = rebuildMode(env);
+
+  // 手動模式：儲存不觸發，只提示使用者去按按鈕。
+  if (!mode.auto && !force) {
+    return {
+      ok: true,
+      configured: null, // 未知也不重要 —— 這是刻意不觸發
+      triggered: false,
+      mode: 'manual',
+      manual: true,
+      message: '資料已儲存。目前為手動模式，請按「⟳ 立即重建前台」讓前台更新。',
+      note: '提示：連續編輯多張名片時，全部改完後按一次按鈕即可。',
+    };
+  }
+
   const status = dispatchStatus(env);
 
   if (!status.ready) {
@@ -385,10 +413,13 @@ export default {
           const now = Date.now();
           const canBuildNow = windowMs <= 0 || !last || !last.at || now - last.at >= windowMs;
           const status = dispatchStatus(env);
+          const mode = rebuildMode(env);
 
           return {
             configured: status.ready,
             config_reason: status.ready ? null : status.reason,
+            mode: mode.mode,
+            auto: mode.auto,
             repo: status.repo,
             last_build_at: last && last.at ? new Date(last.at).toISOString() : null,
             throttle_minutes: minutes,

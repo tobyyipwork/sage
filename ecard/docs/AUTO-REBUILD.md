@@ -159,7 +159,18 @@ concurrency:
 
 ## 四、日常使用
 
-**你不需要做任何事。** 存檔後最慢 15 分鐘生效。
+**這取決於你選的 `AUTO_REBUILD_MODE`：**
+
+| 模式 | 你要做的事 |
+| --- | --- |
+| `auto`（預設） | **不需要做任何事。** 存檔後自動重建；沒開後台時由排程兜底（最慢 15 分鐘） |
+| `manual` | **改完要按「⟳ 立即重建前台」。** 儲存不會自動觸發 |
+
+> 排程本身**目前從未成功觸發過**（見下方已知問題），
+> 所以 `auto` 模式在實務上等於「存檔即更新」，
+> `manual` 模式則完全依賴你記得按按鈕。
+>
+> 詳細模式說明與選擇建議見 [`ADMIN-REBUILD.md`](ADMIN-REBUILD.md) 第四節。
 
 想確認狀態時：
 
@@ -389,6 +400,9 @@ gh workflow run auto-rebuild.yml
 > 從後台直接觸發重建，**完全不依賴 GitHub 排程**。
 > 設定方式見 [`ADMIN-REBUILD.md`](ADMIN-REBUILD.md)。
 > 這是目前**建議的主要途徑**；排程則退居為備援。
+>
+> 後台另提供 `AUTO_REBUILD_MODE` 可切成 `auto`（存檔自動觸發）
+> 或 `manual`（只按按鈕才觸發），兩種模式都保留同一個手動按鈕。
 
 > 註：社群案例 [github/community#205984](https://github.com/orgs/community/discussions/205984)
 > 症狀完全相同（public repo、dispatch 正常、schedule 恆為 0），
@@ -412,6 +426,8 @@ git push
 | --- | --- |
 | `.github/workflows/auto-rebuild.yml` | 排程與流程定義 |
 | `.github/workflows/keepalive.yml` | 每月保活，避免 60 天無活動被停用 |
+| `cloud/worker/src/github.js` | 後台觸發 GitHub workflow（含 `AUTO_REBUILD_MODE` 解析） |
+| `cloud/worker/src/index.js` | 各端點寫入後呼叫 `runRebuild()`，含模式判斷與節流 |
 | `cloud/scripts/kv-fingerprint.js` | 計算／比對資料指紋 |
 | `cloud/scripts/kv-to-data.js` | 從 KV 拉資料（支援 REST API 與 wrangler 兩種模式） |
 | `cloud/scripts/env-utils.mjs` | 共用：憑證檢查、尋找可用的 wrangler |

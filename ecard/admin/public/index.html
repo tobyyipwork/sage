@@ -110,6 +110,7 @@
 <div class="wrap">
   <div class="toolbar">
     <span class="muted" id="countLine"></span>
+    <span class="muted" id="modeLine" style="margin-left:auto"></span>
   </div>
   <div class="grid" id="list"></div>
   <div class="empty" id="empty" style="display:none">尚無電子名片，點擊右上角「＋ 新增電子名片」開始。</div>
@@ -279,6 +280,27 @@ async function init(){
   try{CONFIG=await api('GET','/api/config');}catch(e){CONFIG={};}
   $('#subline').textContent=(CONFIG.org&&CONFIG.org.zh?CONFIG.org.zh+' · ':'')+'SAGE E-Card Admin · v'+(CONFIG.site?CONFIG.site.version:'')+(IS_CLOUD?' · 雲端':' · 本機');
   await refresh();
+  await loadBuildStatus();
+}
+
+/* 讀取建置狀態，在工具列顯示目前是自動還是手動模式。
+   失敗時靜默略過 —— 這只是提示，不該擋住主要操作。 */
+async function loadBuildStatus(){
+  try{
+    const b=await api('GET','/api/build');
+    const el=$('#modeLine');
+    if(!el) return;
+    if(b.configured===false){
+      el.textContent='⚠ 自動重建未設定';
+      el.style.color='var(--warn,#b45309)';
+      return;
+    }
+    if(b.auto){
+      el.textContent='重建模式：自動（儲存後自動更新）';
+    }else{
+      el.textContent='重建模式：手動（改完請按「⟳ 立即重建前台」）';
+    }
+  }catch(e){/* 略過 */}
 }
 async function refresh(){STAFF=await api('GET','/api/staff');renderList();}
 
@@ -377,9 +399,10 @@ function collectRows(container,map){
    後端在所有異動端點都會回傳 rebuild 物件，說明是否已通知 GitHub 重建。
    這裡統一轉成使用者看得懂的訊息，避免「存了但不知道有沒有生效」。
 
-   三種情況必須分清楚：
+   四種情況必須分清楚：
      triggered         已觸發，前台即將更新
      throttled+pending 這一輪趕不上，要稍後再觸發一次（不可說成「已更新」）
+     manual            手動模式，刻意不觸發 —— 要引導使用者去按按鈕
      configured:false  未設定，只能手動或等排程 */
 function buildHint(rebuild){
   if(!rebuild) return {msg:'',warn:false};
@@ -388,6 +411,7 @@ function buildHint(rebuild){
     const mins=Math.max(1,Math.ceil((rebuild.next_allowed_in_seconds||0)/60));
     return {msg:`，但這一輪可能趕不上（已記錄）。請約 ${mins} 分鐘後按「立即重建前台」確保生效`,warn:true};
   }
+  if(rebuild.manual) return {msg:'，請按「⟳ 立即重建前台」讓前台更新',warn:true};
   if(rebuild.configured===false) return {msg:'，但自動重建尚未設定，需手動或等排程',warn:true};
   return {msg:'',warn:false};
 }
@@ -396,7 +420,7 @@ function showBuildOut(rebuild){
   const out=$('#buildOut');
   if(!rebuild||!out) return;
   out.style.display='block';
-  const mark=rebuild.triggered?'✓':(rebuild.configured===false?'ℹ':'⚠');
+  const mark=rebuild.triggered?'✓':(rebuild.configured===false?'ℹ':(rebuild.manual?'⟳':'⚠'));
   out.textContent=mark+' '+(rebuild.message||'已處理')
     +(rebuild.note?('\n'+rebuild.note):'');
 }
@@ -455,16 +479,16 @@ async function doBuild(){
     const r=await api('POST','/api/build',{force:true});
     if(r.configured===false){
       out.textContent='ℹ '+r.message;
-      toast('資料已儲存（未設定自動重建）',true);
+      toast('無法觸發：尚未設定自動重建',true);
     }else if(r.triggered){
       out.textContent='✓ '+(r.message||'已觸發');
       toast('已觸發網站重建');
     }else{
-      out.textContent='• '+(r.message||'已處理');
+      out.textContent='⚠ '+(r.message||'已處理');
       toast(r.message||'已處理',true);
     }
   }catch(e){out.textContent='✗ '+e.message;toast('生成失敗',true);}
-  finally{btn.disabled=false;btn.textContent='⟳ 立即重建前台';}
+  finally{btn.disabled=false;btn.textContent='⟳ 立即重建前台';await loadBuildStatus();}
 }
 
 // image pick handlers (event delegation)

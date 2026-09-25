@@ -17,7 +17,7 @@ import { dirname, resolve } from 'node:path';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WORKER_SRC = resolve(HERE, 'src');
 
-const { dispatchStatus, triggerRebuild, latestRun } = await import(
+const { dispatchStatus, triggerRebuild, latestRun, rebuildMode } = await import(
   'file://' + resolve(WORKER_SRC, 'github.js').replace(/\\/g, '/')
 );
 
@@ -254,9 +254,40 @@ console.log('\n=== 執行狀態查詢（latestRun）===');
   restoreFetch();
 }
 
-/* ══════════ ⑤ 整合：Worker 端點 ══════════ */
-console.log('\n=== 整合：Worker /api/build ===');
+/* ══════════ ⑤ 重建模式切換（AUTO_REBUILD_MODE） ══════════ */
+console.log('\n=== 重建模式切換 ===');
 
+{
+  const m = (env) => rebuildMode(env).mode;
+
+  m({}) === 'auto' ? ok('未設定時預設為 auto（維持既有行為）') : bad('未設定預設', m({}));
+  m({ AUTO_REBUILD_MODE: 'auto' }) === 'auto' ? ok('明確設定 auto') : bad('設定 auto');
+  m({ AUTO_REBUILD_MODE: 'manual' }) === 'manual' ? ok('明確設定 manual') : bad('設定 manual');
+
+  // 大小寫與空白要容錯，否則使用者手改 toml 很容易踩雷
+  m({ AUTO_REBUILD_MODE: 'MANUAL' }) === 'manual'
+    ? ok('大寫 MANUAL 仍視為 manual')
+    : bad('大寫 MANUAL', m({ AUTO_REBUILD_MODE: 'MANUAL' }));
+  m({ AUTO_REBUILD_MODE: '  manual  ' }) === 'manual'
+    ? ok('前後空白仍視為 manual')
+    : bad('空白 trim', m({ AUTO_REBUILD_MODE: '  manual  ' }));
+
+  // 關鍵：打錯字必須 fallback 到 auto，不可意外靜音
+  m({ AUTO_REBUILD_MODE: 'manul' }) === 'auto'
+    ? ok('拼錯字 fallback 為 auto（避免誤觸靜音）')
+    : bad('拼錯字 fallback', m({ AUTO_REBUILD_MODE: 'manul' }));
+  m({ AUTO_REBUILD_MODE: 'off' }) === 'auto'
+    ? ok('非法值 fallback 為 auto')
+    : bad('非法值 fallback', m({ AUTO_REBUILD_MODE: 'off' }));
+
+  rebuildMode({}).auto === true ? ok('auto 模式 auto=true') : bad('auto flag');
+  rebuildMode({ AUTO_REBUILD_MODE: 'manual' }).auto === false
+    ? ok('manual 模式 auto=false')
+    : bad('manual flag');
+}
+
+/* ══════════ ⑥ 整合：Worker 端點 ══════════ */
+console.log('\n=== 整合：Worker /api/build ===');
 {
   const worker = (await import('file://' + resolve(WORKER_SRC, 'index.js').replace(/\\/g, '/'))).default;
 

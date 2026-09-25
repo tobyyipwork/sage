@@ -23,9 +23,34 @@
  *
  * 兩個都設定齊全才會啟用；只設一個會被視為設定不完整並明確報錯
  * （避免半套設定造成「以為有觸發、其實沒有」的靜默失敗）。
+ *
+ * ── AUTO_REBUILD_MODE：自動／手動切換 ─────────────────────
+ *
+ *   "auto"   （預設）所有異動端點寫入後自動觸發重建。
+ *   "manual" 異動端點只存資料並回報「請按按鈕」，
+ *            只有後台「立即重建前台」按鈕會真的觸發。
+ *
+ * 兩種模式都保留同一個手動按鈕；差別只在「儲存時要不要順手觸發」。
+ * 切換方式：改 wrangler.toml 的 [vars] AUTO_REBUILD_MODE 後重新部署，
+ * 不需要改任何業務程式碼。
  */
 
 const API = 'https://api.github.com';
+
+/* ---------- 模式 ---------- */
+
+/**
+ * 解析目前的重建模式。
+ * 任何非 "manual" 的值都視為 "auto"（含未設定），
+ * 因為「自動」是既有行為，不能因為打錯字而意外靜音。
+ *
+ * @returns {{mode: 'auto'|'manual', auto: boolean}}
+ */
+export const rebuildMode = (env) => {
+  const raw = String(env.AUTO_REBUILD_MODE || '').trim().toLowerCase();
+  const mode = raw === 'manual' ? 'manual' : 'auto';
+  return { mode, auto: mode === 'auto' };
+};
 
 /* ---------- 設定檢查 ---------- */
 

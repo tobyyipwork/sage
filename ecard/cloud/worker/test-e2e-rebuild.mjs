@@ -278,6 +278,102 @@ const halfData = await halfRes.json();
 check('半套設定（缺 token）時 configured 為 false', halfData?.configured === false);
 check('半套設定有明確原因', !!halfData?.reason, halfData?.reason);
 
+/* ⑩ 手動模式（AUTO_REBUILD_MODE=manual）→ 儲存不觸發，按鈕才觸發 */
+const envManual = { ...env, AUTO_REBUILD_MODE: 'manual' };
+
+const manualCreate = await workerModule.fetch(
+  new Request(`http://127.0.0.1:${PORT}/api/staff`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      slug: 'test-manual',
+      active: true,
+      name: { zh: '手動測試', cn: '手动测试', en: 'Manual Test' },
+      title: { zh: '測試', cn: '测试', en: 'Test' },
+      n: { family: '手動', given: '測試' },
+      email: 'm@example.com',
+    }),
+  }),
+  envManual
+);
+const manualCreateData = await manualCreate.json();
+check('手動模式：新增名片仍成功', manualCreateData?.ok === true, JSON.stringify(manualCreateData).slice(0, 160));
+check(
+  '手動模式：新增後「不」自動觸發',
+  manualCreateData?.rebuild?.triggered === false,
+  JSON.stringify(manualCreateData?.rebuild)
+);
+check('手動模式：標記 mode=manual', manualCreateData?.rebuild?.mode === 'manual', manualCreateData?.rebuild?.mode);
+check('手動模式：標記 manual=true', manualCreateData?.rebuild?.manual === true);
+check(
+  '手動模式：訊息引導使用者去按按鈕',
+  /立即重建前台/.test(manualCreateData?.rebuild?.message || ''),
+  manualCreateData?.rebuild?.message
+);
+
+// 關鍵：確認 GitHub 完全沒有被呼叫（這才是手動模式的意義）
+ghRequests.length = 0;
+const manualUpdate = await workerModule.fetch(
+  new Request(`http://127.0.0.1:${PORT}/api/staff/test-manual`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      slug: 'test-manual',
+      active: true,
+      name: { zh: '手動測試改', cn: '手动测试改', en: 'Manual Test II' },
+      title: { zh: '測試', cn: '测试', en: 'Test' },
+      n: { family: '手動', given: '測試' },
+      email: 'm@example.com',
+    }),
+  }),
+  envManual
+);
+const manualUpdateData = await manualUpdate.json();
+check('手動模式：修改名片成功', manualUpdateData?.ok === true);
+check('手動模式：修改後也不觸發', manualUpdateData?.rebuild?.triggered === false);
+check('手動模式：完全沒有發出 GitHub 請求', ghRequests.length === 0, `got ${ghRequests.length}`);
+
+// 手動模式下按按鈕 → 應該要觸發
+ghRequests.length = 0;
+const manualBtn = await workerModule.fetch(
+  new Request(`http://127.0.0.1:${PORT}/api/build`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force: true }),
+  }),
+  envManual
+);
+const manualBtnData = await manualBtn.json();
+check('手動模式：按鈕仍可觸發', manualBtnData?.triggered === true, JSON.stringify(manualBtnData));
+check('手動模式：按鈕確實呼叫 GitHub', ghRequests.some((r) => r.url.includes('/dispatches')));
+
+// 狀態查詢要回報 manual
+const statusManual = await workerModule.fetch(
+  new Request(`http://127.0.0.1:${PORT}/api/build`, {
+    headers: { Authorization: `Bearer ${TOKEN}` },
+  }),
+  envManual
+);
+const statusManualData = await statusManual.json();
+check('狀態查詢回報 mode=manual', statusManualData?.mode === 'manual', statusManualData?.mode);
+check('狀態查詢回報 auto=false', statusManualData?.auto === false);
+
+/* ⑪ auto 模式的狀態查詢要回報 auto */
+const statusAuto = await api('GET', '/api/build', { token: TOKEN });
+check('auto 模式狀態查詢回報 mode=auto', statusAuto.data?.mode === 'auto', statusAuto.data?.mode);
+check('auto 模式狀態查詢回報 auto=true', statusAuto.data?.auto === true);
+
+/* ⑫ 打錯字不可意外靜音（fallback auto）*/
+const envTypo = { ...env, AUTO_REBUILD_MODE: 'manul' };
+const typoRes = await workerModule.fetch(
+  new Request(`http://127.0.0.1:${PORT}/api/build`, {
+    headers: { Authorization: `Bearer ${TOKEN}` },
+  }),
+  envTypo
+);
+const typoData = await typoRes.json();
+check('拼錯字 fallback 為 auto（不靜音）', typoData?.mode === 'auto', typoData?.mode);
+
 /* ---------- 收尾 ---------- */
 globalThis.fetch = realFetch;
 server.close();
