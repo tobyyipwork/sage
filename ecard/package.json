@@ -23,9 +23,11 @@
     "cloud:push": "cd cloud/worker && wrangler deploy",
     "cloud:tail": "cd cloud/worker && wrangler tail",
 
-    "cloud:test": "node cloud/worker/test-local.mjs && node cloud/worker/test-kv-images.mjs && node cloud/worker/test-ci-path.mjs",
+    "cloud:test": "node cloud/worker/test-local.mjs && node cloud/worker/test-kv-images.mjs && node cloud/worker/test-ci-path.mjs && node cloud/worker/test-rebuild-trigger.mjs && node cloud/worker/test-e2e-rebuild.mjs",
     "cloud:test:kv": "node cloud/worker/test-kv-images.mjs",
     "cloud:test:ci": "node cloud/worker/test-ci-path.mjs",
+    "cloud:test:rebuild": "node cloud/worker/test-rebuild-trigger.mjs",
+    "cloud:test:e2e": "node cloud/worker/test-e2e-rebuild.mjs",
     "cloud:test:browser": "node cloud/worker/test-browser.mjs"
   },
   "engines": {

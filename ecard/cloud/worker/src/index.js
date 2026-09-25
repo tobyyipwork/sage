@@ -14,10 +14,23 @@
  *   DELETE /api/staff/:slug                  刪除名片
  *   POST   /api/staff/:slug/image            上傳圖片
  *   DELETE /api/staff/:slug/image/:key       刪除圖片
- *   POST   /api/build                        觸發重新生成 + 部署
+ *   POST   /api/build                        觸發重新生成 + 部署（見 src/github.js）
+ *   GET    /api/build                        查詢建置狀態與最近一次執行結果
  *   GET    /api/health                       健康檢查（公開）
  *   GET    /img/:slug/:key                   圖片讀取（公開，前台名片用）
  *   GET    /r/:org/:slug                     動態 QR 中轉（公開，第三階段）
+ *
+ * ── 自動重建 ───────────────────────────────────────────────
+ *
+ * 所有會改動名片資料的端點（新增／修改／刪除名片、改機構設定、
+ * 上傳／刪除圖片）都會在寫入完成後自動觸發前台重建，
+ * 回應中附帶一個 rebuild 欄位說明觸發結果：
+ *
+ *   { configured: true,  triggered: true  }   已通知 GitHub 開始重建
+ *   { configured: true,  triggered: false, throttled: true }  節流合併，稍後才生效
+ *   { configured: false, ... }                未設定，需手動或等排程
+ *
+ * 需要的環境變數：GITHUB_REPO、GITHUB_DISPATCH_TOKEN（詳見 src/github.js）
  *
  * 部署： wrangler deploy
  */
@@ -26,8 +39,73 @@ import { authenticate, issueToken, verifyLogin } from './auth.js';
 import { createStorage, mimeFor } from './storage.js';
 import { sanitizeStaff } from './staff-schema.js';
 import { handleRedirect } from './redirect.js';
+import { dispatchStatus, triggerRebuild, latestRun } from './github.js';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 單張圖片 5MB
+
+/* ---------------- 重建觸發（共用） ---------------- */
+
+/**
+ * 觸發前台重建，並套用節流。
+ *
+ * 為什麼要節流：Cloudflare 免費版與 GitHub Actions 都有配額概念，
+ * 而使用者常常連續編輯多張名片後才離開。若每次儲存都立刻觸發，
+ * 短時間內會產生大量重複建置（其中多數建置結果相同）。
+ * 因此預設在視窗內合併為一次；force 可略過。
+ *
+ * 節流狀態記在 KV 而非記憶體 —— 記憶體版在多個 isolate 間不共用，
+ * 會各自計時而失效。
+ *
+ * @returns {object} 結構化結果，供 API 回應與前端顯示
+ */
+const runRebuild = async (storage, env, { force = false } = {}) => {
+  const status = dispatchStatus(env);
+
+  if (!status.ready) {
+    return {
+      ok: false,
+      configured: false,
+      triggered: false,
+      reason: status.reason,
+      message:
+        '資料已儲存，但後台尚未設定自動重建（需 GITHUB_REPO 與 GITHUB_DISPATCH_TOKEN）。' +
+        '目前可等待排程，或手動執行：gh workflow run auto-rebuild.yml',
+    };
+  }
+
+  const buildKey = `build:${storage.ORG}:last`;
+  const now = Date.now();
+  const envMin = env.BUILD_THROTTLE_MINUTES;
+  const windowMs = (envMin === undefined || envMin === '' ? 5 : Number(envMin)) * 60 * 1000;
+
+  if (!force && windowMs > 0) {
+    const last = await storage.getJson(buildKey);
+    if (last && last.at && now - last.at < windowMs) {
+      const waitSec = Math.ceil((windowMs - (now - last.at)) / 1000);
+      return {
+        ok: true,
+        configured: true,
+        triggered: false,
+        throttled: true,
+        message: `近期已觸發過重建，本次合併略過（${waitSec} 秒後可再觸發）。資料已儲存。`,
+        next_allowed_in_seconds: waitSec,
+      };
+    }
+  }
+
+  const result = await triggerRebuild(env, { force });
+
+  // 只有確實觸發成功才記錄時間，避免失敗時把節流視窗也佔住
+  if (result.triggered) {
+    try {
+      await storage.putJson(buildKey, { at: now });
+    } catch {
+      /* 節流記錄失敗不影響主要流程 */
+    }
+  }
+
+  return result;
+};
 
 /* ---------------- 回應工具 ---------------- */
 const CORS = (env) => ({
@@ -155,7 +233,8 @@ export default {
         'PUT /api/config': async ({}, request) => {
           const body = await jsonBody(request);
           const cfg = await storage.putConfig(body);
-          return { ok: true, config: cfg };
+          const rebuild = await runRebuild(storage, env);
+          return { ok: true, config: cfg, rebuild };
         },
 
         'GET /api/staff': async () => storage.getIndex(),
@@ -174,7 +253,8 @@ export default {
           await storage.patchIndex(saved);           // 新增 → 更新名單
           await storage.putMeta({ count: (meta.count || 0) + 1, updated_at: saved.updated_at, version: (meta.version || 1) + 1 });
 
-          return { ok: true, staff: saved };
+          const rebuild = await runRebuild(storage, env);
+          return { ok: true, staff: saved, rebuild };
         },
 
         'GET /api/staff/:slug': async ({ slug }) => {
@@ -195,7 +275,8 @@ export default {
           if (!writeResult.throttled) {
             await storage.patchIndex(saved);          // 修改 → 更新名單（改內容時仍要同步列表顯示）
           }
-          return { ok: true, staff: saved, throttled: !!writeResult.throttled };
+          const rebuild = await runRebuild(storage, env);
+          return { ok: true, staff: saved, throttled: !!writeResult.throttled, rebuild };
         },
 
         'DELETE /api/staff/:slug': async ({ slug }) => {
@@ -205,7 +286,8 @@ export default {
           await storage.removeFromIndex(slug);        // 刪除 → 更新名單
           const meta = await storage.getMeta();
           await storage.putMeta({ ...meta, count: Math.max(0, (meta.count || 1) - 1), updated_at: new Date().toISOString() });
-          return { ok: true, deleted: slug };
+          const rebuild = await runRebuild(storage, env);
+          return { ok: true, deleted: slug, rebuild };
         },
 
         'POST /api/staff/:slug/image': async ({ slug }, request) => {
@@ -237,7 +319,8 @@ export default {
           await storage.putStaff(existing, { throttle: false });
           await storage.patchIndex(existing);
 
-          return { ok: true, key, ext, bytes: bytes.length };
+          const rebuild = await runRebuild(storage, env);
+          return { ok: true, key, ext, bytes: bytes.length, rebuild };
         },
 
         'DELETE /api/staff/:slug/image/:key': async ({ slug, key }) => {
@@ -253,68 +336,16 @@ export default {
           await storage.putStaff(existing, { throttle: false });
           await storage.patchIndex(existing);
 
-          return { ok: true, key };
+          const rebuild = await runRebuild(storage, env);
+          return { ok: true, key, rebuild };
         },
 
         'POST /api/build': async ({}, request) => {
-          const hook = env.PAGES_DEPLOY_HOOK;
-          if (!hook) {
-            return {
-              ok: false,
-              configured: false,
-              message: '尚未設定 PAGES_DEPLOY_HOOK。資料已儲存，但需手動重建前台（見部署文件第二階段）。',
-            };
-          }
-
           const body = await request.json().catch(() => ({}));
-          const force = body.force === true;
-
-          // 建置節流：視窗內的重複觸發合併為一次。
-          // Cloudflare Pages 免費版每月僅 500 次建置，若每次編輯都觸發會很快用完。
-          // 記在 KV 而非記憶體，避免多個 isolate 各自計時而失效。
-          const buildKey = `build:${storage.ORG}:last`;
-          const now = Date.now();
-          // 可用環境變數調整，預設 5 分鐘；設 0 代表不節流
-          const envMin = env.BUILD_THROTTLE_MINUTES;
-          const windowMs = (envMin === undefined || envMin === '' ? 5 : Number(envMin)) * 60 * 1000;
-
-          if (!force && windowMs > 0) {
-            const last = await storage.getJson(buildKey);
-            if (last && last.at && now - last.at < windowMs) {
-              const waitSec = Math.ceil((windowMs - (now - last.at)) / 1000);
-              return {
-                ok: true,
-                configured: true,
-                triggered: false,
-                throttled: true,
-                message: `近期已觸發過建置，略過本次以節省配額（${waitSec} 秒後可再觸發）。資料已儲存。`,
-                next_allowed_in_seconds: waitSec,
-              };
-            }
-          }
-
-          const res = await fetch(hook, { method: 'POST' });
-          if (!res.ok) {
-            throw Object.assign(new Error(`觸發部署失敗（HTTP ${res.status}）`), { status: 502 });
-          }
-
-          // 記錄觸發時間（節流用；寫入失敗不影響主要流程）
-          try {
-            await storage.putJson(buildKey, { at: now });
-          } catch {
-            /* 忽略 */
-          }
-
-          return {
-            ok: true,
-            configured: true,
-            triggered: true,
-            throttled: false,
-            message: '已觸發前台重建，約 30–60 秒後生效',
-          };
+          return runRebuild(storage, env, { force: body.force === true });
         },
 
-        // 查詢建置狀態（供後台顯示「上次發佈時間」）
+        // 查詢建置狀態（供後台顯示「上次發佈時間」與最近一次執行結果）
         'GET /api/build': async () => {
           const last = await storage.getJson(`build:${storage.ORG}:last`);
           const envMin = env.BUILD_THROTTLE_MINUTES;
@@ -322,11 +353,16 @@ export default {
           const windowMs = minutes * 60 * 1000;
           const now = Date.now();
           const canBuildNow = windowMs <= 0 || !last || !last.at || now - last.at >= windowMs;
+          const status = dispatchStatus(env);
+
           return {
-            configured: !!env.PAGES_DEPLOY_HOOK,
+            configured: status.ready,
+            config_reason: status.ready ? null : status.reason,
+            repo: status.repo,
             last_build_at: last && last.at ? new Date(last.at).toISOString() : null,
             throttle_minutes: minutes,
             can_build_now: canBuildNow,
+            latest_run: await latestRun(env),
           };
         },
       };

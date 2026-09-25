@@ -101,7 +101,7 @@
     <div class="sub" id="subline">SAGE E-Card Admin</div>
   </div>
   <div style="display:flex;gap:.6rem;flex-wrap:wrap">
-    <button class="btn btn-ghost" id="buildBtn" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)">⟳ 重新生成網站</button>
+    <button class="btn btn-ghost" id="buildBtn" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)">⟳ 立即重建前台</button>
     <button class="btn" id="addBtn" style="background:#fff;color:var(--primary)">＋ 新增電子名片</button>
     <button class="btn btn-ghost" id="logoutBtn" style="display:none;background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)">登出</button>
   </div>
@@ -373,6 +373,26 @@ function collectRows(container,map){
   }).filter(o=>map(o));
 }
 
+/* ── 重建觸發結果提示 ──
+   後端在所有異動端點都會回傳 rebuild 物件，說明是否已通知 GitHub 重建。
+   這裡統一轉成使用者看得懂的訊息，避免「存了但不知道有沒有生效」。 */
+function buildHint(rebuild){
+  if(!rebuild) return {msg:'',warn:false};
+  if(rebuild.triggered) return {msg:'，已開始重建前台（約 1–2 分鐘後生效）',warn:false};
+  if(rebuild.throttled) return {msg:'，前台將稍後合併更新',warn:false};
+  if(rebuild.configured===false) return {msg:'，但自動重建尚未設定，需手動或等排程',warn:true};
+  return {msg:'',warn:false};
+}
+
+function showBuildOut(rebuild){
+  const out=$('#buildOut');
+  if(!rebuild||!out) return;
+  out.style.display='block';
+  const h=buildHint(rebuild);
+  const mark=rebuild.triggered?'✓':(rebuild.configured===false?'ℹ':'•');
+  out.textContent=mark+' '+(rebuild.message||'已處理')+h.msg;
+}
+
 async function submitForm(){
   const slug=$('#f_slug').value.trim();
   if(!slug){toast('請填寫 slug',true);return;}
@@ -391,40 +411,52 @@ async function submitForm(){
     custom_links:custom,
   };
   try{
-    if(editing) await api('PUT','/api/staff/'+encodeURIComponent(editing),payload);
-    else await api('POST','/api/staff',payload);
+    let last=null;
+    if(editing) last=await api('PUT','/api/staff/'+encodeURIComponent(editing),payload);
+    else last=await api('POST','/api/staff',payload);
     // upload pending images
     const target=editing||slug;
     for(const key of Object.keys(pending)){
-      if(pending[key]) await api('POST',`/api/staff/${encodeURIComponent(target)}/image`,{key,dataUrl:pending[key]});
+      if(pending[key]) last=await api('POST',`/api/staff/${encodeURIComponent(target)}/image`,{key,dataUrl:pending[key]});
     }
     for(const key of removed){
-      await api('DELETE',`/api/staff/${encodeURIComponent(target)}/image/${key}`).catch(()=>{});
+      last=await api('DELETE',`/api/staff/${encodeURIComponent(target)}/image/${key}`).catch(()=>null)||last;
     }
-    toast(editing?'已更新':'已新增');
+    const h=buildHint(last&&last.rebuild);
+    toast((editing?'已更新':'已新增')+h.msg,h.warn);
+    showBuildOut(last&&last.rebuild);
     closeForm();await refresh();
   }catch(e){toast(e.message,true);}
 }
 
 async function deleteStaff(slug){
   if(!confirm(`確定刪除「${slug}」？此動作會連同其圖片一併移除，且無法復原。`))return;
-  try{await api('DELETE','/api/staff/'+encodeURIComponent(slug));toast('已刪除');await refresh();}catch(e){toast(e.message,true);}
+  try{
+    const r=await api('DELETE','/api/staff/'+encodeURIComponent(slug));
+    const h=buildHint(r&&r.rebuild);
+    toast('已刪除'+h.msg,h.warn);
+    showBuildOut(r&&r.rebuild);
+    await refresh();
+  }catch(e){toast(e.message,true);}
 }
 
 async function doBuild(){
   const btn=$('#buildBtn');btn.disabled=true;btn.textContent='生成中…';
   const out=$('#buildOut');out.style.display='block';out.textContent='';
   try{
-    const r=await api('POST','/api/build');
+    const r=await api('POST','/api/build',{force:true});
     if(r.configured===false){
       out.textContent='ℹ '+r.message;
-      toast('資料已儲存（未設定自動部署）');
-    }else{
-      out.textContent=(r.message||'已觸發')+'\n✓ 完成';
+      toast('資料已儲存（未設定自動重建）',true);
+    }else if(r.triggered){
+      out.textContent='✓ '+(r.message||'已觸發');
       toast('已觸發網站重建');
+    }else{
+      out.textContent='• '+(r.message||'已處理');
+      toast(r.message||'已處理',true);
     }
   }catch(e){out.textContent='✗ '+e.message;toast('生成失敗',true);}
-  finally{btn.disabled=false;btn.textContent='⟳ 重新生成網站';}
+  finally{btn.disabled=false;btn.textContent='⟳ 立即重建前台';}
 }
 
 // image pick handlers (event delegation)

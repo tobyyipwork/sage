@@ -385,6 +385,11 @@ gh workflow run auto-rebuild.yml
    —— 這也正是「方案 B」，能同時繞過 60 天停用限制
 3. 定期觀察 GitHub 是否自行恢復
 
+> ✅ **已實作替代方案**：後台「一鍵重建」功能已上線，
+> 從後台直接觸發重建，**完全不依賴 GitHub 排程**。
+> 設定方式見 [`ADMIN-REBUILD.md`](ADMIN-REBUILD.md)。
+> 這是目前**建議的主要途徑**；排程則退居為備援。
+
 > 註：社群案例 [github/community#205984](https://github.com/orgs/community/discussions/205984)
 > 症狀完全相同（public repo、dispatch 正常、schedule 恆為 0），
 > 該案作者推測是新帳號限制，但本案帳號已 3 年，不適用同一結論。

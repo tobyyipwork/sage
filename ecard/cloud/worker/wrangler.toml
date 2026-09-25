@@ -46,7 +46,20 @@ id = "78100d9be89b4bccbde4b3cbbdd7a777"
 # ── 機密（用指令設定，不要寫在檔案裡）─────────────────────────
 #   wrangler secret put ADMIN_PASSWORD_HASH
 #   wrangler secret put TOKEN_SECRET
-#   wrangler secret put PAGES_DEPLOY_HOOK      （選填，第二階段才需要）
+#
+# 自動重建（後台「儲存後自動觸發」與「立即重建前台」按鈕用）：
+#   GITHUB_REPO 不是機密，但放 secret 可與 token 一起管理，較不易漏設。
+#   wrangler secret put GITHUB_REPO            例：tobyyipwork/sage
+#   wrangler secret put GITHUB_DISPATCH_TOKEN  fine-grained PAT
+#
+# GITHUB_DISPATCH_TOKEN 權限要求（最小權限原則）：
+#   Fine-grained token → Repository access 只選 sage 這一個 repo
+#                     → Permissions: Actions = Read and write
+#                       （僅此一項即可；不需要 Contents 權限）
+#
+# 為什麼不用 PAGES_DEPLOY_HOOK：
+#   那是 Cloudflare Pages 的部署鉤子，而本專案前台是 GitHub Pages，
+#   因此改為呼叫 GitHub Actions 的 workflow_dispatch API 觸發重建。
 #
 # ADMIN_PASSWORD_HASH 產生方式：
 #   node cloud/scripts/make-password.js "你的密碼"

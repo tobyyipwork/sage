@@ -329,46 +329,50 @@ section('⑨ 動態 QR 中轉（預留功能）');
 
 section('⑩ Build 觸發');
 {
-  const noHook = await call('POST', '/api/build', { token: TOKEN() });
-  check('未設定 deploy hook 時回報未設定', noHook.data?.configured === false);
-  check('並說明資料已儲存', /已儲存/.test(noHook.data?.message || ''));
+  const noCfg = await call('POST', '/api/build', { token: TOKEN() });
+  check('未設定 GitHub 觸發時回報未設定', noCfg.data?.configured === false);
+  check('並說明資料已儲存', /已儲存/.test(noCfg.data?.message || ''));
 
   const status = await call('GET', '/api/build', { token: TOKEN() });
   check('可查詢建置狀態', status.status === 200 && typeof status.data?.can_build_now === 'boolean');
-  check('未設 hook 時 configured 為 false', status.data?.configured === false);
+  check('未設定時 configured 為 false', status.data?.configured === false);
 }
 
-section('⑩b 建置節流（保護 Pages 500 次/月配額）');
+section('⑩b 建置節流（保護建置配額）');
 {
-  // 建一個帶 hook 的環境，並攔截 fetch 計數
-  let hookCalls = 0;
+  // 建一個帶 GitHub 設定的環境，並攔截 fetch 計數
+  let ghCalls = 0;
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, opts) => {
-    if (String(url).includes('deploy-hook.test')) {
-      hookCalls++;
-      return new Response('ok', { status: 200 });
+    if (String(url).includes('api.github.com')) {
+      ghCalls++;
+      return new Response(null, { status: 204 });
     }
     return realFetch(url, opts);
   };
 
-  const hookEnv = { ...env, PAGES_DEPLOY_HOOK: 'https://deploy-hook.test/abc' };
-  const callHook = (opts) => callWith('POST', '/api/build', { token: TOKEN(), body: opts?.body, envOverride: hookEnv });
+  const ghEnv = {
+    ...env,
+    GITHUB_REPO: 'tobyyipwork/sage',
+    GITHUB_DISPATCH_TOKEN: 'github_pat_fake_for_test',
+  };
+  const callHook = (opts) => callWith('POST', '/api/build', { token: TOKEN(), body: opts?.body, envOverride: ghEnv });
 
   const first = await callHook();
   check('第一次觸發成功', first.data?.triggered === true, JSON.stringify(first.data));
-  check('hook 被呼叫 1 次', hookCalls === 1, `got ${hookCalls}`);
+  check('GitHub API 被呼叫 1 次', ghCalls === 1, `got ${ghCalls}`);
 
   const second = await callHook();
   check('第二次被節流（不重複觸發）', second.data?.triggered === false && second.data?.throttled === true);
-  check('hook 仍只被呼叫 1 次', hookCalls === 1, `got ${hookCalls}`);
+  check('GitHub API 仍只被呼叫 1 次', ghCalls === 1, `got ${ghCalls}`);
   check('節流時回報剩餘等待秒數', typeof second.data?.next_allowed_in_seconds === 'number');
   check('節流訊息說明資料已儲存', /已儲存/.test(second.data?.message || ''));
 
   const forced = await callHook({ body: { force: true } });
   check('force:true 可強制觸發', forced.data?.triggered === true);
-  check('hook 被呼叫 2 次（強制那次）', hookCalls === 2, `got ${hookCalls}`);
+  check('GitHub API 被呼叫 2 次（強制那次）', ghCalls === 2, `got ${ghCalls}`);
 
-  const st = await callWith('GET', '/api/build', { token: TOKEN(), envOverride: hookEnv });
+  const st = await callWith('GET', '/api/build', { token: TOKEN(), envOverride: ghEnv });
   check('狀態查詢顯示 configured 為 true', st.data?.configured === true);
   check('狀態查詢顯示上次建置時間', !!st.data?.last_build_at);
   check(`節流視窗為 5 分鐘`, st.data?.throttle_minutes === 5, `got ${st.data?.throttle_minutes}`);
