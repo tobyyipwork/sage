@@ -1,0 +1,31 @@
+{
+  "active": true,
+  "created_at": "2026-09-28T15:17:24+08:00",
+  "custom_links": [],
+  "email": "toby.yip@sage.org.hk",
+  "id": "st_005",
+  "images": {
+    "avatar": "",
+    "banner": "",
+    "wechat_qr": ""
+  },
+  "n": {
+    "family": "Yip",
+    "given": "Toby"
+  },
+  "name": {
+    "cn": "叶子健",
+    "en": "Toby Yip",
+    "zh": "葉子健"
+  },
+  "phone_mobile": "",
+  "phone_work": "25112235",
+  "slug": "toby-yip",
+  "social_links": [],
+  "title": {
+    "cn": "资讯科技助理",
+    "en": "IT Assistant",
+    "zh": "資訊科技助理"
+  },
+  "updated_at": "2026-09-28T15:17:24+08:00"
+}
