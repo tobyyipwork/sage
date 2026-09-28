@@ -169,6 +169,39 @@
       </fieldset>
 
       <fieldset>
+        <legend>管理密碼</legend>
+        <div id="pwStatus" class="muted" style="margin-bottom:.8rem"></div>
+
+        <div class="field">
+          <label>目前的密碼</label>
+          <input type="password" id="c_pw_current" autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <div class="field">
+          <label>新密碼</label>
+          <input type="password" id="c_pw_new" autocomplete="new-password" placeholder="••••••••">
+        </div>
+        <div class="field">
+          <label>確認新密碼</label>
+          <input type="password" id="c_pw_confirm" autocomplete="new-password" placeholder="••••••••">
+        </div>
+
+        <div id="pwStrength" class="muted" style="min-height:1.2rem;margin-bottom:.5rem"></div>
+
+        <div class="muted" style="font-size:.74rem;line-height:1.7;margin-bottom:.8rem">
+          規則：至少 8 個字元、不可使用常見密碼、不可為重複單一字元。<br>
+          建議混合大小寫字母、數字與符號。
+        </div>
+
+        <button class="btn btn-primary btn-sm" id="c_pw_save">修改密碼</button>
+
+        <div class="muted" style="font-size:.72rem;margin-top:.7rem;line-height:1.6">
+          修改後會簽發新的通行證給這台裝置，你不必重新登入。<br>
+          其他裝置的舊通行證仍有效直到到期 —— 想全部登出請見
+          <code>docs/PLATFORM-ROADMAP.md</code> 的說明。
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend>技術資訊（唯讀）</legend>
         <div class="muted" style="line-height:1.9;font-size:.78rem">
           <div>機構代碼：<code id="c_ro_orgcode"></code></div>
@@ -410,8 +443,104 @@ function openSettings(){
   $('#c_ro_version').textContent  = (c.site && c.site.version) || '（未設定）';
 
   $('#cfgOverlay').classList.add('show');
+  loadPwStatus();
 }
-function closeSettings(){ $('#cfgOverlay').classList.remove('show'); }
+function closeSettings(){
+  $('#cfgOverlay').classList.remove('show');
+  // 清空密碼欄位 —— 不讓密碼在關閉後留在 DOM 裡
+  ['#c_pw_current','#c_pw_new','#c_pw_confirm'].forEach(s=>{const el=$(s);if(el)el.value='';});
+  const st=$('#pwStrength'); if(st){st.textContent='';st.style.color='';}
+}
+
+/* ── 管理密碼 ──────────────────────────────────────────────────
+   與後端 password-policy.js 使用同一套規則：
+   - 至少 8 字元
+   - 不可為常見密碼
+   - 不可為重複單一字元
+   前端檢查只是即時回饋，後端仍會再驗一次（安全邊界在後端）。
+   ───────────────────────────────────────────────────────────── */
+
+/** 與 password-policy.js 保持一致的規則 */
+const PW_MIN = 8;
+const PW_WEAK = new Set(['password','passw0rd','12345678','123456789','1234567890',
+  'qwertyui','qwerty123','abcdefgh','iloveyou','admin123','sage1234','ecard123',
+  'letmein1','welcome1','changeme','88888888','00000000','11111111','abcd1234','a1234567']);
+
+function evalPassword(pw){
+  if(pw.length < PW_MIN) return {ok:false, reason:`至少需要 ${PW_MIN} 個字元`, strength:'weak'};
+  if(PW_WEAK.has(pw.toLowerCase())) return {ok:false, reason:'這個密碼太常見', strength:'weak'};
+  if(/^(.)\1+$/.test(pw)) return {ok:false, reason:'不可為重複的單一字元', strength:'weak'};
+  let score=0;
+  if(pw.length>=PW_MIN) score++;
+  if(pw.length>=12) score++;
+  if(pw.length>=16) score++;
+  if(/[a-z]/.test(pw)&&/[A-Z]/.test(pw)) score++;
+  if(/\d/.test(pw)) score++;
+  if(/[^A-Za-z0-9]/.test(pw)) score++;
+  // 門檻與後端 password-policy.js 保持一致（0–1 weak / 2–3 fair / 4–5 good / 6 strong）
+  const strength = score>=6?'strong':score>=4?'good':score>=2?'fair':'weak';
+  return {ok:true, strength};
+}
+
+function updatePwStrength(){
+  const el=$('#pwStrength'); if(!el) return;
+  const pw=$('#c_pw_new').value;
+  if(!pw){el.textContent='';return;}
+  const r=evalPassword(pw);
+  const label={weak:'弱',fair:'普通',good:'良好',strong:'強'};
+  const color={weak:'var(--danger)',fair:'#b45309',good:'#15803d',strong:'#15803d'};
+  if(!r.ok){el.textContent='✗ '+r.reason;el.style.color='var(--danger)';return;}
+  el.textContent='強度：'+label[r.strength]+'（建議至少「良好」）';
+  el.style.color=color[r.strength];
+}
+
+async function loadPwStatus(){
+  const el=$('#pwStatus'); if(!el) return;
+  try{
+    const r=await api('GET','/api/password');
+    if(!r.configured){
+      el.innerHTML='⚠ 尚未設定管理密碼，請設定後再使用後台。';
+      el.style.color='var(--warn,#b45309)';
+    }else if(r.migrated){
+      el.innerHTML='✓ 管理密碼已可在這裡修改。';
+      el.style.color='var(--ink-faint)';
+    }else{
+      el.innerHTML='ℹ 目前使用部署時設定的密碼。在這裡修改後，將改由網頁管理。';
+      el.style.color='var(--ink-faint)';
+    }
+  }catch(e){ el.textContent=''; }
+}
+
+async function savePassword(){
+  const btn=$('#c_pw_save');
+  const cur=$('#c_pw_current').value;
+  const nw=$('#c_pw_new').value;
+  const cf=$('#c_pw_confirm').value;
+
+  if(!cur){toast('請輸入目前的密碼',true);$('#c_pw_current').focus();return;}
+  if(!nw){toast('請輸入新密碼',true);$('#c_pw_new').focus();return;}
+  if(nw!==cf){toast('兩次輸入的新密碼不一致',true);$('#c_pw_confirm').focus();return;}
+  if(nw===cur){toast('新密碼不可與目前的密碼相同',true);return;}
+
+  const r=evalPassword(nw);
+  if(!r.ok){toast(r.reason,true);return;}
+
+  btn.disabled=true;const old=btn.textContent;btn.textContent='修改中…';
+  try{
+    const res=await api('POST','/api/password',{current_password:cur,new_password:nw});
+    // 後端會簽發新通行證，換掉舊的以免本機立刻失效
+    if(res.token) setToken(res.token);
+    ['#c_pw_current','#c_pw_new','#c_pw_confirm'].forEach(s=>{const el=$(s);if(el)el.value='';});
+    const st=$('#pwStrength'); if(st){st.textContent='';st.style.color='';}
+    const label={weak:'弱',fair:'普通',good:'良好',strong:'強'};
+    toast('密碼已更新（強度：'+(label[res.strength]||res.strength)+'）');
+    await loadPwStatus();
+  }catch(e){
+    toast(e.message||'修改失敗',true);
+  }finally{
+    btn.disabled=false;btn.textContent=old;
+  }
+}
 
 async function saveSettings(){
   const btn = $('#cfgSaveBtn');
@@ -707,6 +836,8 @@ $('#settingsBtn').onclick=openSettings;
 $('#cfgCloseX').onclick=closeSettings;
 $('#cfgCancelBtn').onclick=closeSettings;
 $('#cfgSaveBtn').onclick=saveSettings;
+$('#c_pw_save').onclick=savePassword;
+$('#c_pw_new').addEventListener('input',updatePwStrength);
 $('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeForm();});
 $('#cfgOverlay').addEventListener('click',e=>{if(e.target.id==='cfgOverlay')closeSettings();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeForm();closeSettings();}});

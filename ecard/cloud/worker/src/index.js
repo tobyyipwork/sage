@@ -42,10 +42,11 @@
  * 部署： wrangler deploy
  */
 
-import { authenticate, issueToken, verifyLogin } from './auth.js';
+import { authenticate, issueToken, verifyLogin, hashPassword } from './auth.js';
 import { createStorage, mimeFor } from './storage.js';
 import { sanitizeStaff } from './staff-schema.js';
 import { sanitizeConfig } from './config-schema.js';
+import { checkPassword, PASSWORD_RULES } from './password-policy.js';
 import { handleRedirect } from './redirect.js';
 import { dispatchStatus, triggerRebuild, latestRun, rebuildMode } from './github.js';
 
@@ -243,7 +244,7 @@ export default {
 
       if (pathname === '/api/login' && method === 'POST') {
         const body = await jsonBody(request);
-        const result = await verifyLogin(body.password, env);
+        const result = await verifyLogin(body.password, env, storage);
         if (!result.ok) {
           // 不透露是「密碼錯」還是「未設定」以外的細節
           const status = result.reason.startsWith('server not configured') ? 500 : 401;
@@ -304,8 +305,79 @@ export default {
           return { ok: true, config: cfg, rebuild };
         },
 
-        'GET /api/staff': async () => storage.getIndex(),
+        /* ---------- 管理密碼（第 1 層） ----------
+         * 機構可自助修改密碼，不必再請開發者下 CLI 指令。
+         * 修改需提供舊密碼 —— 這是防止通行證被盜後直接改鎖。
+         * -------------------------------------------- */
 
+        'GET /api/password': async () => {
+          // 只回報狀態，絕不回傳雜湊或任何可逆推出密碼的資訊
+          const hasKv = await storage.hasPasswordRecord();
+          const hasEnv = !!(env.ADMIN_PASSWORD_HASH && /^[0-9a-f]{64}$/i.test(String(env.ADMIN_PASSWORD_HASH).trim()));
+          return {
+            ok: true,
+            configured: hasKv || hasEnv,
+            // 主要在 KV 還是環境密鑰 —— 讓後台能提示來源
+            source: hasKv ? 'kv' : (hasEnv ? 'env' : 'none'),
+            // 是否已遷移到 KV（false 代表仍在用環境密鑰，改密碼後才會搬過來）
+            migrated: hasKv,
+          };
+        },
+
+        'POST /api/password': async ({}, request) => {
+          const body = await jsonBody(request);
+
+          const currentPw = String(body.current_password ?? '');
+          const newPw = String(body.new_password ?? '');
+
+          if (!currentPw) {
+            throw Object.assign(new Error('請輸入目前的密碼'), { status: 400 });
+          }
+
+          // ① 先驗證舊密碼（沿用 verifyLogin，因此也支援環境密鑰來源）
+          const check = await verifyLogin(currentPw, env, storage);
+          if (!check.ok) {
+            const status = check.reason.startsWith('server not configured') ? 500 : 401;
+            throw Object.assign(
+              new Error(status === 500 ? check.reason : '目前的密碼不正確'),
+              { status }
+            );
+          }
+
+          // ② 驗證新密碼是否符合政策
+          const policy = checkPassword(newPw);
+          if (!policy.ok) {
+            throw Object.assign(new Error(policy.reason), { status: 400 });
+          }
+
+          // ③ 新舊不可相同（避免「改了但其實沒改」）
+          if (newPw === currentPw) {
+            throw Object.assign(new Error('新密碼不可與目前的密碼相同'), { status: 400 });
+          }
+
+          // ④ 寫入 KV
+          const hash = await hashPassword(newPw);
+          const rec = await storage.putPasswordRecord(hash, {
+            algo: 'sha256',
+            updatedBy: session?.sub || 'admin',
+          });
+
+          // ⑤ 簽發新通行證 —— 讓改密碼的本人不必重新登入，
+          //    但其他裝置的舊通行證仍有效直到過期（無狀態設計的取捨）。
+          const ttl = Number(env.TOKEN_TTL_HOURS) || 168;
+          const token = await issueToken(env.TOKEN_SECRET || '', ttl);
+
+          return {
+            ok: true,
+            source: check.source,          // 這次是從 KV 還是環境密鑰驗證成功的
+            updated_at: rec.updated_at,
+            strength: policy.strength,
+            token,                          // 新通行證，前端應替換掉舊的
+            expires_in_hours: ttl,
+          };
+        },
+
+        'GET /api/staff': async () => storage.getIndex(),
         'POST /api/staff': async ({}, request) => {
           const body = await jsonBody(request);
           const slug = String(body.slug || '').trim();

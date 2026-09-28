@@ -268,6 +268,41 @@ export const createStorage = (env) => {
     return meta;
   };
 
+  /* ---------- 管理密碼（第 1 層：可重設的密碼） ----------
+   *
+   * 原本密碼雜湊只存在 Worker 環境密鑰 ADMIN_PASSWORD_HASH，
+   * 只能靠 `wrangler secret put` 修改 —— 機構無法自助。
+   *
+   * 改為存在 KV：
+   *   auth:{org}:password  →  { hash, algo, updated_at, updated_by }
+   *
+   * 向後相容：KV 沒有值時，呼叫端（auth.js）會回落讀取環境密鑰。
+   * 這點很重要 —— 否則本次升級會讓既有機構立刻無法登入。
+   *
+   * 儲存格式刻意帶 algo 欄位，將來若要改成 bcrypt / scrypt
+   * 可以靠它判斷，不必猜測既有值的演算法。
+   * ------------------------------------------------ */
+  const kAuthPassword = () => `auth:${ORG}:password`;
+
+  const getPasswordRecord = () => getJson(kAuthPassword());
+
+  const putPasswordRecord = async (hash, { algo = 'sha256', updatedBy = 'admin' } = {}) => {
+    const rec = {
+      hash: String(hash),
+      algo: String(algo),
+      updated_at: new Date().toISOString(),
+      updated_by: String(updatedBy),
+    };
+    await putJson(kAuthPassword(), rec);
+    return rec;
+  };
+
+  /** 是否已在 KV 設定過密碼（決定是否還需要回落環境密鑰） */
+  const hasPasswordRecord = async () => {
+    const rec = await getPasswordRecord();
+    return !!(rec && rec.hash);
+  };
+
   return {
     ORG,
     /** 圖片儲存模式：'r2' 或 'kv'（供健康檢查與後台顯示） */
@@ -292,6 +327,9 @@ export const createStorage = (env) => {
     imageFlags,
     getMeta,
     putMeta,
+    getPasswordRecord,
+    putPasswordRecord,
+    hasPasswordRecord,
     IMG_EXTS,
     IMG_KEYS,
   };

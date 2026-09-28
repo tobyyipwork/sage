@@ -1,13 +1,25 @@
 /**
- * SAGE E-Card Cloud — 驗證層（方案 A：共用密碼）
+ * SAGE E-Card Cloud — 驗證層
  *
  * 設計目標：
- *  - 密碼絕不以明文存在環境變數（存 SHA-256 雜湊）
+ *  - 密碼絕不以明文存在任何地方（一律存 SHA-256 雜湊）
  *  - 登入成功後發一張 HMAC 簽章的通行證（token），有效期可設定
  *  - 通行證自帶到期時間，Worker 不需查任何儲存即可驗證（無狀態）
  *
- * 將來升級到方案 B（Email 驗證碼）時，只需替換本檔的 verifyLogin，
- * 其餘程式碼完全不用動。
+ * ── 密碼來源的演進（2026-09）──────────────────────────────
+ *
+ *   原本：只能讀 env.ADMIN_PASSWORD_HASH，
+ *         機構無法自助改密碼（要開發者下 wrangler secret put）。
+ *
+ *   現在：優先讀 KV auth:{org}:password，讀不到才回落環境密鑰。
+ *         機構可在後台網頁自行修改密碼。
+ *
+ *   回落機制的必要性：升級當下 KV 還沒有值，
+ *   若不回落，既有機構會立刻無法登入。
+ *
+ * ── 未來升級到方案 B（Email 驗證碼）───────────────────────
+ *   只需替換 verifyLogin，其餘程式碼完全不用動。
+ *   儲存層已預留 users:{org} 作為授權 email 名單。
  */
 
 const enc = new TextEncoder();
@@ -87,20 +99,63 @@ export const verifyToken = async (token, secret) => {
 
 /* ---------- 登入 ---------- */
 /**
- * 比對密碼。env.ADMIN_PASSWORD_HASH 是 SHA-256 十六進位字串。
+ * 比對密碼。
+ *
+ * 密碼來源有兩處，優先順序如下：
+ *   ① KV  auth:{org}:password        （第 1 層：可由網頁自助修改）
+ *   ② env ADMIN_PASSWORD_HASH        （舊機制：只能 CLI 修改）
+ *
+ * 為什麼要保留 ② 的回落？
+ *   這是**向後相容的關鍵**。若移除回落，本次升級後
+ *   「尚未在網頁改過密碼」的機構會立刻無法登入 ——
+ *   因為 KV 裡還沒有值。
+ *   有了回落，機構可以照自己的步調遷移：
+ *   第一次在網頁改密碼時才會寫入 KV，之後就以 KV 為準。
+ *
  * 使用時序安全比較，避免以回應時間推測密碼。
+ *
+ * @param {string} password  使用者輸入
+ * @param {object} env       Worker 環境
+ * @param {object} [storage] 儲存層（未提供時只檢查環境密鑰，維持舊行為）
  */
-export const verifyLogin = async (password, env) => {
+export const verifyLogin = async (password, env, storage = null) => {
+  const input = await sha256Hex(String(password || ''));
+
+  /* ① 先看 KV 是否已有設定 */
+  if (storage && typeof storage.getPasswordRecord === 'function') {
+    let rec = null;
+    try {
+      rec = await storage.getPasswordRecord();
+    } catch {
+      rec = null;   // KV 讀取失敗時退回環境密鑰，不讓登入整個壞掉
+    }
+    if (rec && rec.hash) {
+      const stored = String(rec.hash).trim().toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(stored)) {
+        return { ok: false, reason: 'server not configured: KV 中的密碼雜湊格式錯誤' };
+      }
+      return timingSafeEqualHex(input, stored)
+        ? { ok: true, source: 'kv' }
+        : { ok: false, reason: 'wrong password' };
+    }
+  }
+
+  /* ② 回落：環境密鑰 */
   const stored = String(env.ADMIN_PASSWORD_HASH || '').trim().toLowerCase();
   if (!stored || !/^[0-9a-f]{64}$/.test(stored)) {
     return { ok: false, reason: 'server not configured: ADMIN_PASSWORD_HASH 未設定或格式錯誤' };
   }
-  const input = await sha256Hex(String(password || ''));
-  if (input.length !== stored.length) return { ok: false, reason: 'wrong password' };
+  return timingSafeEqualHex(input, stored)
+    ? { ok: true, source: 'env' }
+    : { ok: false, reason: 'wrong password' };
+};
+
+/** 時序安全的十六進位字串比較 */
+const timingSafeEqualHex = (a, b) => {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
   let diff = 0;
-  for (let i = 0; i < stored.length; i++) diff |= input.charCodeAt(i) ^ stored.charCodeAt(i);
-  if (diff !== 0) return { ok: false, reason: 'wrong password' };
-  return { ok: true };
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 };
 
 /* ---------- 中介層 ---------- */
