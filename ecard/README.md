@@ -273,62 +273,46 @@ QR 區塊以原生 `<details>` 手風琴呈現（**零 JavaScript**），預設�
 
 ---
 
-## 隱私保護（存取暗號）
+## 隱私與曝光控制
 
-名片含員工姓名、電郵、手機，而 GitHub Pages 是「有網址就看得見」的靜態託管。
-為了不讓這些資料被隨便翻到、被搜尋引擎收錄、或被路人用常見拼音
-（`lee-siu-wah`、`wong-ka-ming`…）列舉出全部員工，本站支援**存取暗號**。
+名片含員工姓名、電郵、手機。本站目前對「曝光」採取了以下措施：
 
-### 運作方式
-
-啟用後，整站會被搬進一層暗號目錄：
-
-```
-未啟用：  https://<user>.github.io/<repo>/ecard/dist/chan-tai-man/
-啟用後：  https://<user>.github.io/<repo>/ecard/dist/<暗號>/chan-tai-man/
-                                                      ^^^^^^^^^^
-```
-
-沒帶暗號連一個名片都撈不到；帶了暗號就能照常使用好記的 `chan-tai-man` 網址。
-暗號只有一個，守好它即可 —— 新同事加入不必另外發暗號。
-
-### 設定方式
-
-暗號**刻意不存在 repo 裡**（repo 是公開的，暗號進版控就等於公布門鎖號碼），
-而是存在 Cloudflare KV：
-
-```bash
-cd ecard/cloud/worker
-npx wrangler kv key put --binding=DATA --remote "prefix:sage" "<你的暗號>"
-```
-
-之後無論是本機 `npm run sync` 還是 GitHub Actions 自動重建，
-都會自動從 KV 讀取暗號並套用到建置結果。
-
-本機若想臨時測試，也可直接給環境變數：
-
-```bash
-SITE_PREFIX=test1234 npm run build      # Windows: set SITE_PREFIX=test1234 && npm run build
-```
-
-### 三道防線
-
-| 防線 | 作用 | 效力 |
+| 措施 | 位置 | 作用 |
 |---|---|---|
-| **存取暗號** | 網址猜不到，陌生人一律 404 | 主要防護 |
-| **`robots.txt` → `Disallow: /`** | 請搜尋引擎不要收錄 | 次要（爬蟲可自行決定不理會） |
-| **`<meta noindex>`** | 個別頁面標記不收錄 | 次要 |
+| 後台不部署 | `build.js` | 後台只在本機開啟，對外無登入頁 |
+| `robots.txt` → `Disallow: /` | 建置產物 | 請搜尋引擎不要收錄 |
+| `<meta noindex>` | 每張名片頁 | 個別頁面標記不收錄 |
+| 不公布 sitemap | `robots.txt` | 避免公開「所有員工頁面」清單 |
+| 跳轉頁無路徑資訊 | 根目錄與 `ecard/` | 不再對外指路 |
 
-**誠實說明**：靜態託管沒有真正的存取控制。這三道防線擋的是
-「隨機訪客」與「搜尋引擎索引」，**擋不住鐵了心要知道網址的人**。
-若需要真正的權限控管（例如只有特定 email 能進），
-必須改用 Cloudflare Access 之類的閘門，而非 GitHub Pages。
+### 效力邊界（請務必理解）
 
-### 更換暗號
+**這些措施擋的是「搜尋引擎索引」，不是「知道網址的人」。**
 
-改 KV 的值 → 觸發一次重建即可。舊網址會在下一次建置時自動清除
-（建置流程會移除不屬於當前暗號的殘留目錄，這是刻意設計，
-避免舊的公開網址繼續存活）。
+GitHub Pages 是靜態託管，沒有存取控制 —— 只要知道正確網址，
+任何人都能開啟名片頁。上述措施無法阻止這件事。
+
+此外，**若 repo 為公開**，`data/staff/*.json` 可透過
+`raw.githubusercontent.com` 直接讀取，這條路徑不受 `robots.txt`
+或 `noindex` 影響（它們只管網頁，不管原始檔）。
+
+若確實需要「只有授權者能看」的保護，必須改用具存取控制的託管
+（例如 Cloudflare Pages + Cloudflare Access 的 email 閘門），
+或將 repo 設為私有並把資料移出 repo。這屬於架構層級的變更，
+不在目前實作範圍內。
+
+### 後台
+
+後台介面（`admin/public/index.html`）**不會**被複製進 `dist/`，
+因此對外沒有後台網址（未設定路由時回 404）。
+
+本機開發時直接以瀏覽器開啟該檔案即可，並以 `?api=` 參數指定 Worker 位址：
+
+```
+ecard/admin/public/index.html?api=https://sage-ecard-api.tobyyip-work.workers.dev
+```
+
+真正的資料保護在 Worker 的驗證層 —— 沒有密碼拿不到任何資料。
 
 ---
 
@@ -342,7 +326,6 @@ git add dist && git commit -m "Update cards" && git push
 ```
 
 `site.url` = `https://<user>.github.io`，`basePath` = `/<repo>/ecard/dist`。
-若已啟用存取暗號，`basePath` 會自動再接上暗號層，無需手動修改設定。
 
 ### 自訂網域（根目錄）
 
@@ -374,7 +357,7 @@ git add dist && git commit -m "Update cards" && git push
   若日後需要遠端管理，應改由 Worker 在已驗證身分後提供。
 - 真正的資料保護在 Worker 的驗證層 —— 沒有密碼拿不到任何資料。
 - **若 repo 為公開**，`data/staff/*.json` 可透過 `raw.githubusercontent.com`
-  直接讀取，存取暗號與 `robots.txt` 都擋不住這條路徑。
+  直接讀取，`robots.txt` 與 `noindex` 都擋不住這條路徑（它們只管網頁，不管原始檔）。
   在意這點的機構請將 repo 設為私有，或把資料移出 repo。
 - 員工個人資料請依相關私隱法規處理。
 
