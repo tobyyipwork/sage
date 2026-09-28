@@ -299,7 +299,7 @@ QR 區塊以原生 `<details>` 手風琴呈現（**零 JavaScript**），預設�
 
 ```bash
 cd ecard/cloud/worker
-npx wrangler kv key put --binding=ECARD_KV "prefix:sage" "<你的暗號>"
+npx wrangler kv key put --binding=DATA --remote "prefix:sage" "<你的暗號>"
 ```
 
 之後無論是本機 `npm run sync` 還是 GitHub Actions 自動重建，

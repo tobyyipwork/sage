@@ -269,7 +269,8 @@ if (prefixValue) {
 } else {
   console.log('  ⚠ KV 沒有設定存取暗號（prefix:' + ORG + '）');
   console.log('    → 建置結果將為「未加密」版本，所有人皆可瀏覽。');
-  console.log('    → 正式環境請設定：wrangler kv key put --binding=ECARD_KV "prefix:' + ORG + '" "<暗號>"');
+  console.log('    → 正式環境請設定：npx wrangler kv key put --binding=DATA --remote \\');
+  console.log('        "prefix:' + ORG + '" "<暗號>"    （在 ecard/cloud/worker 目錄執行）');
 }
 
 // 2. 名單
