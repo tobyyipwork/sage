@@ -1,0 +1,62 @@
+{
+  "active": true,
+  "created_at": "2026-09-28T14:30:00+08:00",
+  "custom_links": [
+    {
+      "color": "#9b4c8b",
+      "icon": "globe",
+      "title": {
+        "cn": "机构网站",
+        "en": "Official Site",
+        "zh": "機構網站"
+      },
+      "url": "https://www.sage.org.hk"
+    },
+    {
+      "color": "#2563eb",
+      "icon": "building",
+      "title": {
+        "cn": "联系我们",
+        "en": "Contact Us",
+        "zh": "聯絡我們"
+      },
+      "url": "https://www.sage.org.hk/tc/contact_us"
+    },
+    {
+      "color": "#059669",
+      "icon": "user",
+      "title": {
+        "cn": "服务单位",
+        "en": "Our Services",
+        "zh": "服務單位"
+      },
+      "url": "https://www.sage.org.hk/tc/services"
+    }
+  ],
+  "email": "user@sage.org.hk",
+  "id": "st_004",
+  "images": {
+    "avatar": "",
+    "banner": "",
+    "wechat_qr": ""
+  },
+  "n": {
+    "family": "Cheung",
+    "given": "Mei Ling"
+  },
+  "name": {
+    "cn": "张美玲",
+    "en": "Cheung Mei Ling",
+    "zh": "張美玲"
+  },
+  "phone_mobile": "9876 5432",
+  "phone_work": "2511 2235",
+  "slug": "cheung-mei-ling",
+  "social_links": [],
+  "title": {
+    "cn": "示范用户",
+    "en": "Demo User",
+    "zh": "示範用戶"
+  },
+  "updated_at": "2026-09-28T14:30:00+08:00"
+}
