@@ -106,8 +106,17 @@ export const createStorage = (env) => {
 
   /* ---------- 名單（index） ---------- */
   /**
-   * index 內容： [{ slug, name, title, active, has_avatar }]
+   * index 內容： [{ slug, name, title, active, has_avatar, updated_at }]
    * 列表頁只需讀這一個 key，避免打 300 次 KV 讀取。
+   *
+   * updated_at 的用途：後台卡片要顯示「這張名片是否已發布到前台」。
+   * 判斷方式是拿名片的最後修改時間與「上次成功重建的時間」相比 ——
+   * 所以這裡必須帶上 updated_at，否則前端只能顯示「狀態未知」。
+   * （見 admin/public/index.html 的 pubState()）
+   *
+   * ⚠️ 舊的 index（migrate 之前寫入的）沒有這個欄位，值是 undefined。
+   *    前端已針對此情況保守處理，不會誤報「已上線」；
+   *    重建 index（rebuildIndex）後即會補上。
    */
   const getIndex = async () => (await getJson(kIndex())) || [];
 
@@ -123,6 +132,7 @@ export const createStorage = (env) => {
           name: s.name || {},
           title: s.title || {},
           has_avatar: !!(s.images && s.images.avatar),
+          updated_at: s.updated_at || null,
         };
       })
     );
@@ -140,6 +150,7 @@ export const createStorage = (env) => {
       name: staff.name || {},
       title: staff.title || {},
       has_avatar: !!(staff.images && staff.images.avatar),
+      updated_at: staff.updated_at || null,
     };
     const at = index.findIndex((i) => i.slug === staff.slug);
     if (at === -1) index.push(item);

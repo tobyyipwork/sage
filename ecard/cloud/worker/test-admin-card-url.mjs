@@ -26,7 +26,7 @@ const BUILD = resolve(ROOT, 'build', 'build.js');
 let pass = 0, fail = 0;
 const ok = (m) => { console.log(`  ✓ ${m}`); pass++; };
 const bad = (m) => { console.log(`  ✗ ${m}`); fail++; };
-const check = (cond, good, badMsg) => (cond ? ok(good) : bad(badMsg));
+const check = (cond, good, badMsg) => (cond ? ok(good) : bad(badMsg || `未通過：${good}`));
 
 /* ---------- 從後台 HTML 抽出 cardUrl 的真實原始碼 ---------- */
 const html = readFileSync(ADMIN, 'utf8');
@@ -174,35 +174,66 @@ const realConfig = JSON.parse(readFileSync(resolve(ROOT, 'data', 'config.json'),
  * ⚠️ 這裡不能只檢查「出現了 target= / rel= 這些字樣」——
  *    那些字串就算 href 寫死 "#" 也還在。
  *    必須實際把模板渲染一次，驗證 href 真的指向 cardUrl 的結果。
- *    （這個漏洞是靠突變測試發現的：把 esc(url) 改成 "#" 竟然全綠。） */
+ *    （這個漏洞是靠突變測試發現的：把 esc(url) 改成 "#" 竟然全綠。）
+ *
+ * 實作方式：把 renderList 裡【真實的】urlRow、模板，以及 pubState
+ * 的原始碼一起抽出來，組成一個可執行的渲染函式。
+ * 全部取自檔案，不自己重寫 —— 否則測的是複製品。 */
 {
   const listSrc = (js.match(/function renderList\(\)\{[\s\S]*?\n\}/) || [''])[0];
   check(listSrc.includes('cardUrl('), 'renderList 真的有呼叫 cardUrl');
   check(/class="url"/.test(listSrc), '卡片模板含 .url 元素');
-  check(/url\s*\?[\s\S]*?:/.test(listSrc), '有完整網址與退路的二分支處理');
+  check(/pubState\(/.test(listSrc), 'renderList 真的有呼叫 pubState');
 
-  /* 實際渲染模板：抽出 renderList 裡【真實的】urlRow 定義與 HTML 模板，
-     餵入假的 s / url，看產出的 href 是不是真的等於那個 url。
-     重點：urlRow 也從檔案抽，不自己重寫 —— 否則測的是複製品。 */
-  const urlRowSrc = (listSrc.match(/(const urlRow\s*=[\s\S]*?);\s*\n/) || [])[1];
+  /* 抽 pubState 與它依賴的 agoText。
+     兩者都是 `function name(...){ ... }`，用「行首 } 結尾」界定。
+     若日後改成箭頭函式，這裡會抓不到而報錯 —— 那是刻意設計，
+     寧可測試自己壞掉，也不要靜默地測一個空字串。 */
+  const pubMatch = js.match(/(function pubState\([\s\S]*?\n\})/);
+  const agoMatch = js.match(/(function agoText\([\s\S]*?\n\})/);
+  if (!pubMatch || !agoMatch) {
+    bad(`無法抽出 pubState / agoText（${!!pubMatch} / ${!!agoMatch}）—— 本測試需同步調整`);
+    console.log(`\n  通過 ${pass} 項，失敗 ${fail} 項\n`);
+    process.exit(1);
+  }
+
+  /* 抽 urlRow 與模板。urlRow 現在含巢狀三元（live ? ... : ...），
+     用「到下一個 ${ 前的分號」界定，避免被內層分號截斷。 */
+  const urlRowSrc = (listSrc.match(/(const urlRow\s*=[\s\S]*?);\s*\n\s*div\.innerHTML/) || [])[1];
   const tplSrc = (listSrc.match(/div\.innerHTML\s*=\s*`([\s\S]*?)`;/) || [])[1];
   if (!urlRowSrc || !tplSrc) {
     bad(`無法抽出卡片模板（urlRow=${!!urlRowSrc} template=${!!tplSrc}）—— 本測試需同步調整`);
   } else {
-    const renderCard = (s, url) => {
+    const escFn = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    /* 用真實的 pubState / urlRow / 模板渲染一張卡片。
+       buildStatus 控制 pubState 的判定；不給就是「狀態未知」。 */
+    const renderCard = (s, url, buildStatus) => {
       const ctx = {
-        s, url, av: '',
-        esc: (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
-        cardUrl: () => url,
+        s, url, av: '', esc: escFn, cardUrl: () => url,
+        BUILD_STATUS: buildStatus === undefined ? null : buildStatus,
+        Date, isFinite, Math,
       };
       vm.createContext(ctx);
-      vm.runInContext(`${urlRowSrc}\n; __row = urlRow;`, ctx, { filename: 'urlRow-from-admin.js' });
-      ctx.urlRow = ctx.__row;
-      return vm.runInContext('`' + tplSrc + '`', ctx);
+      vm.runInContext(
+        `${agoMatch[1]}\n${pubMatch[1]}\n; __state = pubState;`,
+        ctx, { filename: 'pubState-from-admin.js' }
+      );
+      ctx.pubState = ctx.__state;
+      /* live 必須先定義 —— urlRow 用到它。 */
+      vm.runInContext(
+        'const ps = pubState(s); const live = ps.cls === "pub-live";',
+        ctx, { filename: 'live-flag-from-admin.js' }
+      );
+      vm.runInContext(`${urlRowSrc};`, ctx, { filename: 'urlRow-from-admin.js' });
+      return { html: vm.runInContext('`' + tplSrc + '`', ctx), state: vm.runInContext('ps', ctx) };
     };
 
     const U = 'https://tobyyipwork.github.io/sage/ecard/dist/chan-tai-man/';
-    const out = renderCard({ slug: 'chan-tai-man', active: true, name: { zh: '陳大文' }, title: { zh: '示範' } }, U);
+    /* 已上線的情境：名片改動早於上次重建。 */
+    const liveStatus = { configured: true, auto: true, last_build_at: '2026-09-28T07:00:00Z' };
+    const card = { slug: 'chan-tai-man', active: true, name: { zh: '陳大文' }, title: { zh: '示範' }, updated_at: '2026-09-20T00:00:00Z' };
+    const { html: out, state: st } = renderCard(card, U, liveStatus);
 
     check(new RegExp(`<a\\s+href="${U.replace(/[/.]/g, '\\$&')}"`).test(out), '渲染後 href 真的等於 cardUrl 的結果', `實際 HTML：${(out.match(/<a[^>]*>/) || ['(無 a 標籤)'])[0]}`);
     check(/target="_blank"/.test(out), '渲染後帶 target="_blank"（另開新分頁）');
@@ -210,13 +241,52 @@ const realConfig = JSON.parse(readFileSync(resolve(ROOT, 'data', 'config.json'),
     check(out.includes(`>${U}</a>`), '連結文字就是完整網址（可選取複製）');
 
     /* 轉義：網址含 & 時必須被 esc 處理（HTML 屬性安全） */
-    const outAmp = renderCard({ slug: 'x', active: true, name: { zh: 'A' }, title: { zh: '' } }, 'https://a.io/p?a=1&b=2');
+    const { html: outAmp } = renderCard({ slug: 'x', active: true, name: { zh: 'A' }, title: { zh: '' }, updated_at: '2026-01-01T00:00:00Z' }, 'https://a.io/p?a=1&b=2', liveStatus);
     check(outAmp.includes('&amp;') && !/href="[^"]*[^m];?a=1&b=2"/.test(outAmp), 'href 內的 & 經 esc 轉義');
 
     /* 退路：url 為空時不該產生 <a href="">，而應顯示 /slug/ */
-    const outEmpty = renderCard({ slug: 'foo-bar', active: false, name: { zh: 'X' }, title: { zh: '' } }, '');
+    const { html: outEmpty } = renderCard({ slug: 'foo-bar', active: false, name: { zh: 'X' }, title: { zh: '' }, updated_at: '2026-01-01T00:00:00Z' }, '', liveStatus);
     check(!/class="url"/.test(outEmpty), '網址為空時不渲染 .url 區塊');
     check(outEmpty.includes('/foo-bar/'), '網址為空時退回顯示 /slug/ 片段');
+
+    /* ---------- 7b. 發布狀態徽章（pubState）----------
+     * 這是要回答「同事會不會誤以為網址壞掉」的核心邏輯。
+     * 判定必須正確，否則會給出錯誤的安心感（或錯誤的警報）。 */
+    const cases = [
+      /* [名稱, 名片, 建置狀態, 期望 cls] */
+      ['改動早於重建 → 已上線', { updated_at: '2026-09-20T00:00:00Z' }, liveStatus, 'pub-live'],
+      ['改動晚於重建 → 待重建', { updated_at: '2026-09-28T08:00:00Z' }, liveStatus, 'pub-pending'],
+      ['自動重建未設定 → 待發布', { updated_at: '2026-09-20T00:00:00Z' }, { configured: false }, 'pub-pending'],
+      ['手動模式 → 待發布', { updated_at: '2026-09-20T00:00:00Z' }, { configured: true, auto: false }, 'pub-pending'],
+      ['沒有重建時間 → 保守待發布', { updated_at: '2026-09-20T00:00:00Z' }, { configured: true, auto: true, last_build_at: null }, 'pub-pending'],
+      ['名片無 updated_at 但有重建 → 視為已上線', {}, liveStatus, 'pub-live'],
+      ['建置狀態未知 → 狀態未知', { updated_at: '2026-09-20T00:00:00Z' }, undefined, 'pub-unknown'],
+    ];
+    const wrong = cases
+      .map(([name, s, b, want]) => ({ name, want, got: renderCard({ slug: 'x', active: true, name: { zh: 'X' }, title: { zh: '' }, ...s }, U, b).state.cls }))
+      .filter((r) => r.want !== r.got);
+    check(wrong.length === 0,
+      `發布狀態判定 ${cases.length} 種情境全部正確`,
+      wrong.map((r) => `${r.name}：期望 ${r.want} 得到 ${r.got}`).join('；'));
+
+    /* 尚未上線時不該給可點的連結 —— 否則「可點但壞掉」比不給更糟。 */
+    const pendingUrl = 'https://tobyyipwork.github.io/sage/ecard/dist/wong-kam-fai/';
+    const { html: pOut } = renderCard(
+      { slug: 'wong-kam-fai', active: true, name: { zh: '黃錦輝' }, title: { zh: '' }, updated_at: '2026-09-28T09:00:00Z' },
+      pendingUrl, liveStatus
+    );
+    check(!/<a\s+href/.test(pOut), '待重建時網址不做成連結（避免點到 404）');
+    check(pOut.includes(pendingUrl), '待重建時仍顯示網址全文（可自行複製）');
+
+    /* 徽章文字要出現在卡片上，否則等於沒做。 */
+    check(/⏳/.test(pOut) && /待重建/.test(pOut), '待重建卡片顯示 ⏳ 待重建 徽章');
+    check(/✅/.test(out) && /已上線/.test(out), '已上線卡片顯示 ✅ 已上線 徽章');
+
+    /* 右側的補充說明（when）也必須渲染出來 ——
+       它才是告訴同事「大概還要多久」的那句話。
+       這項是靠突變測試補上的：把 when 那一行刪掉，原本竟全綠。 */
+    check(/1–2 分鐘/.test(pOut), '待重建卡片顯示預計生效時間（約 1–2 分鐘生效）', '卡片缺少預計生效時間說明');
+    check(/分鐘前|小時前|剛剛|天前/.test(out), '已上線卡片顯示上次重建時間（相對時間）', '已上線卡片缺少「重建於 …」說明');
   }
 }
 

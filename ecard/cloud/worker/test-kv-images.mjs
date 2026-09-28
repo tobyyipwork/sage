@@ -196,6 +196,33 @@ const idx = await storage.getIndex();
 const entry = idx.find((i) => i.slug === staff.slug);
 check('index 的 has_avatar 為 true', entry && entry.has_avatar === true);
 
+/* index 必須帶 updated_at ——
+   後台卡片靠它判斷「這張名片是否已發布到前台」。
+   少這個欄位，前端只能顯示「狀態未知」，功能等於沒做。
+   （見 admin/public/index.html 的 pubState） */
+check('index 帶 updated_at（後台發布狀態判定需要）',
+  entry && typeof entry.updated_at === 'string' && entry.updated_at.length > 0,
+  `實際值：${entry && entry.updated_at}`);
+
+/* 全量重建（rebuildIndex）也要帶上 —— 這是補舊資料的路徑。 */
+const rebuilt = await storage.rebuildIndex();
+const rEntry = rebuilt.find((i) => i.slug === staff.slug);
+check('rebuildIndex 產出的項目同樣帶 updated_at',
+  rEntry && rEntry.updated_at === entry.updated_at,
+  `rebuild 得到 ${rEntry && rEntry.updated_at}，patch 得到 ${entry && entry.updated_at}`);
+
+/* 沒有 updated_at 的舊名片不該讓整個 index 爆掉，值應為 null。 */
+{
+  const legacy = { slug: 'legacy-1', name: { zh: '舊資料' }, title: {}, active: true, images: {} };
+  await kv.put(`staff:${ORG}:legacy-1`, JSON.stringify(legacy));
+  const r2 = await storage.rebuildIndex();
+  const lEntry = r2.find((i) => i.slug === 'legacy-1');
+  check('缺 updated_at 的舊名片 → 該欄為 null（不 undefined、不當掉）',
+    lEntry && lEntry.updated_at === null, `實際值：${lEntry && JSON.stringify(lEntry.updated_at)}`);
+  await kv.delete(`staff:${ORG}:legacy-1`);
+  await storage.rebuildIndex();
+}
+
 const reloaded = await storage.getStaff(staff.slug);
 const flags2 = await storage.imageFlags(staff.slug);
 check('重新讀取名片後旗標與實際檔案一致', flags2.avatar === true && reloaded.images.avatar === 'avatar');

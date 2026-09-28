@@ -41,12 +41,19 @@
   .ecard .url{font-size:.7rem;font-family:monospace;line-height:1.5;word-break:break-all}
   .ecard .url a{color:var(--ink-soft,#4b5563);text-decoration:none;border-bottom:1px dashed var(--line);padding-bottom:1px}
   .ecard .url a:hover{color:var(--accent,#00834d);border-bottom-color:currentColor}
-  /* 狀態徽章 + 提示。放同一列，提示靠右收尾。 */
-  .ecard .meta{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
-  .ecard .meta .ext{font-size:.66rem;color:var(--ink-faint);white-space:nowrap}
   .badge{display:inline-block;font-size:.68rem;padding:.1rem .45rem;border-radius:9999px;font-weight:700}
   .badge.on{background:#dcfce7;color:#166534}
   .badge.off{background:#f3f4f6;color:#6b7280}
+  /* 發布狀態徽章（名片是否已反映到前台）。
+     視覺上用琥珀色代表「還在等」，藍色代表「已上線」——
+     與 .badge.on/.off（顯示／隱藏）語意不同，所以另開一組 class，
+     不要混用，否則兩顆並排時讀者會分不清哪顆在講什麼。 */
+  .badge.pub-pending{background:#fef3c7;color:#92400e}
+  .badge.pub-live{background:#e0f2fe;color:#075985}
+  .badge.pub-unknown{background:#f3f4f6;color:#6b7280}
+  /* 狀態列：徽章群靠左、說明文字靠右 */
+  .ecard .status{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
+  .ecard .status .when{font-size:.66rem;color:var(--ink-faint);margin-left:auto;white-space:nowrap}
   .ecard .acts{display:flex;gap:.5rem;margin-top:.4rem}
   .empty{text-align:center;color:var(--ink-faint);padding:3rem 1rem}
   /* modal */
@@ -99,8 +106,9 @@
       <div style="width:3.5rem;height:3.5rem;margin:0 auto .75rem;border-radius:1rem;background:linear-gradient(135deg,#00834d,#0e9d5f);display:flex;align-items:center;justify-content:center">
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:1.75rem;height:1.75rem"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </div>
-      <div style="font-weight:700;font-size:1.05rem;color:var(--ink)">電子名片後台</div>
-      <div style="font-size:.8rem;color:var(--ink-faint);margin-top:.2rem">請輸入管理密碼</div>
+      <div id="loginOrg" style="font-weight:700;font-size:1.05rem;color:var(--ink)">電子名片後台</div>
+      <div id="loginOrgSub" style="font-size:.72rem;color:var(--ink-faint);margin-top:.15rem"></div>
+      <div style="font-size:.8rem;color:var(--ink-faint);margin-top:.5rem">請輸入管理密碼</div>
     </div>
     <div class="field" style="margin-bottom:1rem">
       <label>密碼</label>
@@ -411,6 +419,42 @@ function showLogin(msg){
   $('#appWrap').style.display='none';
   if(msg)$('#loginErr').textContent=msg;
 }
+
+/* 登入畫面上顯示機構名稱。
+   為什麼需要？同事拿到的是一條網址，打開只看到「電子名片後台」——
+   無從確認自己進的是哪個機構的後台。將來多機構共用同一套部署時，
+   這會直接造成誤登（輸入了密碼才發現進錯地方）。
+
+   ⚠️ 為什麼用 /api/health 而不是 /api/config？
+   因為【所有 /api/* 除了 login 與 health 都需要驗證】——
+   登入前打 /api/config 會拿到 401，而 401 攔截器會把畫面切回登入頁，
+   等於自己把自己踢出去。health 是唯一在登入前可讀的 JSON 端點，
+   它現在也回傳機構名稱（org_name）。
+
+   刻意只在「尚未取得機構名」時寫入，避免覆寫已有內容；
+   失敗時靜默 —— 顯示機構名是加分項，不該擋住登入。 */
+async function fillLoginOrg(){
+  try{
+    /* 已登入的情況：CONFIG 已有完整設定，直接用，省一次請求。 */
+    const org = (CONFIG && CONFIG.org) ? CONFIG.org : null;
+    let name = org;
+    if(!name){
+      const h = await api('GET','/api/health');
+      name = h && h.org_name;
+    }
+    if(!name) return;
+    const zh = name.zh || name.en || '';
+    if(!zh) return;
+    const el=document.getElementById('loginOrg');
+    const sub=document.getElementById('loginOrgSub');
+    if(el) el.textContent = zh + ' · 電子名片後台';
+    /* 副標只在英文名與主標不同時才顯示，
+       避免出現「香港耆康老人福利會 / 香港耆康老人福利會」這種重複。 */
+    const alt = (name.en && name.en !== zh) ? name.en : '';
+    if(sub) sub.textContent = alt;
+    document.title = zh + ' · 電子名片後台';
+  }catch(e){/* 靜默：拿不到機構名也要能登入 */}
+}
 function hideLogin(){
   $('#loginWrap').style.display='none';
   $('#appWrap').style.display='block';
@@ -435,6 +479,7 @@ async function doLogin(){
 function doLogout(){
   setToken('');
   showLogin('已登出');
+  fillLoginOrg();
 }
 
 async function init(){
@@ -442,13 +487,19 @@ async function init(){
   $('#subline').textContent=(CONFIG.org&&CONFIG.org.zh?CONFIG.org.zh+' · ':'')+'SAGE E-Card Admin · v'+(CONFIG.site?CONFIG.site.version:'')+(IS_CLOUD?' · 雲端':' · 本機');
   await refresh();
   await loadBuildStatus();
+  startPubWatch();
 }
 
 /* 讀取建置狀態，在工具列顯示目前是自動還是手動模式。
-   失敗時靜默略過 —— 這只是提示，不該擋住主要操作。 */
+   失敗時靜默略過 —— 這只是提示，不該擋住主要操作。
+
+   同時把結果存進 BUILD_STATUS，供卡片上的發布狀態徽章使用
+   （見 pubState）。兩者共用同一次請求，避免重複打 API。 */
 async function loadBuildStatus(){
   try{
     const b=await api('GET','/api/build');
+    BUILD_STATUS=b;
+    renderList();                     // 取得狀態後重繪，徽章才會脫離「狀態未知」
     const el=$('#modeLine');
     if(!el) return;
     if(b.configured===false){
@@ -463,7 +514,115 @@ async function loadBuildStatus(){
     }
   }catch(e){/* 略過 */}
 }
+/* ── 發布狀態（名片是否已反映到前台）───────────────────────────
+   背景：後台存的資料要等到「重建前台」跑完，前台才會更新。
+   中間這段空窗期，名片網址點下去會是舊版或 404 ——
+   同事會以為壞掉。所以卡片上要明確標示目前處於哪個階段。
+
+   判定依據（誠實說明其限制）：
+   後端 KV 只記錄了「上次成功觸發重建的時間」與「有一輪待處理變更」，
+   **沒有記錄每一張名片各自的發布狀態**。因此這裡用的是近似判斷：
+
+     名片的 updated_at  >  上次重建時間  →  這張的改動還沒反映 → 待重建
+     名片的 updated_at  <= 上次重建時間  →  已涵蓋在最近一輪    → 已上線
+
+   這是可靠的近似，因為重建是「全站重建」：
+   只要重建發生在改動之後，該改動就必定已包含在那一輪輸出裡。
+
+   反過來說，若自動重建未設定、或處於手動模式，
+   我們不知道使用者何時會按按鈕 —— 此時一律標「待發布」，
+   不假裝已上線（寧可保守，也不要給出錯誤的安心感）。
+
+   會自動更新嗎？會 —— 見 startPubWatch() 的輪詢。
+   ───────────────────────────────────────────────────────────── */
+let BUILD_STATUS=null;   // GET /api/build 的回應；null = 尚未取得
+
+/* 把時間戳轉成「幾分鐘前」這種人話。 */
+function agoText(iso){
+  if(!iso) return '';
+  const t=Date.parse(iso);
+  if(!isFinite(t)) return '';
+  const sec=Math.max(0,Math.round((Date.now()-t)/1000));
+  if(sec<60) return '剛剛';
+  const min=Math.round(sec/60);
+  if(min<60) return min+' 分鐘前';
+  const hr=Math.round(min/60);
+  if(hr<24) return hr+' 小時前';
+  return Math.round(hr/24)+' 天前';
+}
+
+/* 單張名片的發布狀態。
+   回傳 {cls,label,when} —— when 為右側的補充說明，沒有就回空字串。 */
+function pubState(s){
+  const b=BUILD_STATUS;
+  /* 還沒取得建置狀態：不猜，顯示中性灰。 */
+  if(!b) return {cls:'pub-unknown',label:'狀態未知',when:''};
+
+  /* 自動重建不可用（未設定／手動模式）→ 無法預測何時生效。
+     用 pending 標記可再細分「有變更還卡著」與「等使用者按按鈕」。 */
+  if(b.configured===false){
+    return {cls:'pub-pending',label:'待發布',when:'自動重建未設定'};
+  }
+  if(b.auto===false){
+    return {cls:'pub-pending',label:'待發布',when:'需手動重建'};
+  }
+
+  const lastAt=Date.parse(b.last_build_at||'');
+  const updAt=Date.parse((s&&s.updated_at)||'');
+
+  /* 沒有重建時間可比對 → 保守標待發布，不誤報已上線。 */
+  if(!isFinite(lastAt)) return {cls:'pub-pending',label:'待發布',when:''};
+
+  /* 名片沒有 updated_at（舊資料）→ 無法判斷，但既然上次重建在，
+     就當它已被涵蓋（時間上重建是最新動作）。 */
+  if(!isFinite(updAt) || updAt<=lastAt){
+    return {cls:'pub-live',label:'已上線',when:'重建於 '+agoText(b.last_build_at)};
+  }
+  return {cls:'pub-pending',label:'待重建',when:'約 1–2 分鐘生效'};
+}
+
+/* 輪詢建置狀態。
+   為什麼要輪詢？使用者按下儲存後，重建是「非同步」在 GitHub 上跑的 ——
+   後端回傳「已觸發」不代表已完成。若只在儲存當下取一次狀態，
+   徽章會永遠停在「待重建」，同事就會一直覺得沒生效。
+
+   20 秒是取捨：夠快到讓同事看到狀態自己變綠，又不會把 Worker 打爆
+   （每次只是一個 KV 讀取）。僅在分頁可見時輪詢，切到背景就停，
+   避免無意義的請求。 */
+const PUB_POLL_MS=20000;
+let pubTimer=null;
+function startPubWatch(){
+  if(pubTimer) clearInterval(pubTimer);
+  pubTimer=setInterval(()=>{
+    if(document.hidden) return;          // 分頁在背景 → 不輪詢
+    refreshPubNow();
+  },PUB_POLL_MS);
+}
+/* 回到前景時立刻補一次更新，不用枯等下一輪（最長 20 秒）。 */
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden && pubTimer) refreshPubNow();
+});
+
+/* 重新讀取名單並重繪。
+   注意：這裡刻意【不】一併更新 BUILD_STATUS ——
+   發布狀態是另一條獨立的資料流（見 loadBuildStatus / refreshPubNow），
+   混在一起會讓「只是重新載入名單」也去打一次 /api/build。 */
 async function refresh(){STAFF=await api('GET','/api/staff');renderList();}
+
+async function refreshPubNow(){
+  const before=BUILD_STATUS&&BUILD_STATUS.last_build_at;
+  try{
+    const b=await api('GET','/api/build');
+    BUILD_STATUS=b;
+    /* 只有在狀態真的變了才重繪 —— 否則每 20 秒閃一次畫面很干擾。 */
+    if(b.last_build_at!==before){
+      renderList();
+      const el=$('#modeLine');
+      if(el&&b.configured!==false) el.textContent='重建模式：'+(b.auto?'自動（儲存後自動更新）':'手動（改完請按「⟳ 立即重建前台」）');
+    }
+  }catch(e){/* 靜默：輪詢失敗不該干擾操作 */}
+}
+
 
 /* ── 機構設定 ──────────────────────────────────────────────────
    可編輯欄位：機構名稱、關於我們、地址、官方網站、版權、QR 標籤。
@@ -673,11 +832,19 @@ function renderList(){
     const div=document.createElement('div');div.className='ecard';
     const av=s.has_avatar?`<img src="${imgUrl(s.slug,'avatar')}" alt="">`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 4-5.5 8-5.5s7.2 1.5 8 5.5"/></svg>`;
     const url=cardUrl(s.slug);
+    const ps=pubState(s);
+    const live=ps.cls==='pub-live';
     /* 完整網址列。CONFIG 尚未載入時 url 為空 ——
        此時退回顯示 /slug/ 片段，不要顯示半截網址（見 cardUrl 的說明）。
-       有完整網址時就不再重複顯示 /slug/，因為它已包含在網址裡。 */
+       有完整網址時就不再重複顯示 /slug/，因為它已包含在網址裡。
+
+       ⚠️ 尚未發布時不給連結：此時點下去只會看到舊版或 404，
+       讓它「可點但壞掉」比「不可點且有說明」更容易讓人誤判。
+       改為純文字，並在標題說明原因。 */
     const urlRow=url
-      ? `<div class="url"><a href="${esc(url)}" target="_blank" rel="noopener" title="另開新分頁預覽名片">${esc(url)}</a></div>`
+      ? (live
+        ? `<div class="url"><a href="${esc(url)}" target="_blank" rel="noopener" title="另開新分頁預覽名片">${esc(url)}</a></div>`
+        : `<div class="url"><span title="前台尚未更新，現在開啟會看到舊資料或 404">${esc(url)}</span></div>`)
       : `<div class="slug">/${esc(s.slug)}/</div>`;
     div.innerHTML=`
       <div class="row1">
@@ -688,9 +855,10 @@ function renderList(){
         </div>
       </div>
       ${urlRow}
-      <div class="meta">
+      <div class="status">
         <span class="badge ${s.active?'on':'off'}">${s.active?'顯示中':'隱藏'}</span>
-        <span class="ext">↗ 另開新分頁</span>
+        <span class="badge ${ps.cls}">${live?'✅':'⏳'} ${esc(ps.label)}</span>
+        ${ps.when?`<span class="when">${esc(ps.when)}</span>`:''}
       </div>
       <div class="acts">
         <button class="btn btn-sm btn-ghost" data-edit="${esc(s.slug)}">編輯</button>
@@ -833,6 +1001,9 @@ async function submitForm(){
     toast((editing?'已更新':'已新增')+h.msg,h.warn);
     showBuildOut(last&&last.rebuild);
     closeForm();await refresh();
+    /* 儲存可能剛觸發重建 —— 重新取狀態，卡片才會顯示「待重建」，
+       而不是沿用上一次的「已上線」。 */
+    await loadBuildStatus();
   }catch(e){toast(e.message,true);}
 }
 
@@ -844,6 +1015,7 @@ async function deleteStaff(slug){
     toast('已刪除'+h.msg,h.warn);
     showBuildOut(r&&r.rebuild);
     await refresh();
+    await loadBuildStatus();
   }catch(e){toast(e.message,true);}
 }
 
@@ -863,7 +1035,11 @@ async function doBuild(){
       toast(r.message||'已處理',true);
     }
   }catch(e){out.textContent='✗ '+e.message;toast('生成失敗',true);}
-  finally{btn.disabled=false;btn.textContent='⟳ 立即重建前台';await loadBuildStatus();}
+  finally{
+    btn.disabled=false;btn.textContent='⟳ 立即重建前台';
+    await loadBuildStatus();          // 重新取得狀態 → 卡片徽章跟著更新
+    await refreshPubNow();            // 若 GitHub 極快完成，這一輪就能反映
+  }
 }
 
 // image pick handlers (event delegation)
@@ -920,8 +1096,8 @@ if(IS_CLOUD){
   $('#logoutBtn').onclick=doLogout;
   $('#loginBtn').onclick=doLogin;
   $('#loginPw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-  if(getToken()){hideLogin();init().catch(()=>showLogin(''));}
-  else showLogin('');
+  if(getToken()){hideLogin();init().catch(()=>{showLogin('');fillLoginOrg();});}
+  else{showLogin('');fillLoginOrg();}
 }else{
   init();
 }

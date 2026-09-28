@@ -16,6 +16,7 @@
  *   DELETE /api/staff/:slug/image/:key       刪除圖片
  *   POST   /api/build                        觸發重新生成 + 部署（見 src/github.js）
  *   GET    /api/build                        查詢建置狀態與最近一次執行結果
+ *   POST   /api/maintenance/rebuild-index    重建名片名單快取（欄位新增時用）
  *   GET    /api/health                       健康檢查（公開）
  *   GET    /img/:slug/:key                   圖片讀取（公開，前台名片用）
  *   GET    /r/:org/:slug                     動態 QR 中轉（公開，第三階段）
@@ -230,10 +231,30 @@ export default {
       /* ---------- 公開路由（不需驗證）---------- */
 
       if (pathname === '/api/health') {
+        /* 附上機構顯示名稱，供登入畫面使用。
+           為什麼要放在這裡？
+           登入畫面上要顯示「你正在登入哪個機構的後台」，
+           但 /api/config 需要驗證 —— 登入前拿不到。
+           health 是唯一免驗證的 JSON 端點，所以由它提供。
+
+           這樣做安全嗎？機構名稱本來就印在每一張公開的電子名片上，
+           不是機密；這裡只多回一個名字，不涉及任何設定內容。
+           取不到時回 null，前端據此退回顯示通用標題。 */
+        let orgName = null;
+        try {
+          const cfg = await storage.getConfig();
+          if (cfg && cfg.org) {
+            orgName = { zh: cfg.org.zh || '', cn: cfg.org.cn || '', en: cfg.org.en || '' };
+          }
+        } catch {
+          /* 取不到機構名不影響健康檢查的意義 */
+        }
+
         return json(
           {
             ok: true,
             org: storage.ORG,
+            org_name: orgName,
             image_mode: storage.imageMode, // 'r2' 或 'kv'
             time: new Date().toISOString(),
           },
@@ -378,6 +399,23 @@ export default {
         },
 
         'GET /api/staff': async () => storage.getIndex(),
+
+        /* 重建名單快取（index:{org}）。
+           為什麼需要這個端點？
+           名單是從各筆 staff 記錄「投影」出來的輕量快取，欄位若新增
+           （例如 updated_at），既有的快取不會自動補上 ——
+           前端就只會看到 undefined。全量重建一次即可修好。
+
+           為何走 API 而不是叫人跑 wrangler？
+           KV 的寫入權杖在部署環境，手動改資料庫既危險又難複製；
+           用一個受保護的端點，行為可測試、可重複。
+
+           刻意「只做這一件事」：不碰 staff 記錄本身，只重新投影名單，
+           所以是安全的冪等操作。 */
+        'POST /api/maintenance/rebuild-index': async () => {
+          const index = await storage.rebuildIndex();
+          return { ok: true, count: index.length, at: new Date().toISOString() };
+        },
         'POST /api/staff': async ({}, request) => {
           const body = await jsonBody(request);
           const slug = String(body.slug || '').trim();

@@ -446,7 +446,7 @@ KV 的 TTL 特性正好合用：`KV.put(key, val, { expirationTtl: 600 })`
 
 | 端點 | 狀態 |
 | --- | --- |
-| `GET /api/health` | ✅ |
+| `GET /api/health` | ✅ 公開。回 `org`（代碼）、`org_name`（三語顯示名，登入畫面用）、`image_mode` |
 | `POST /api/login` | ✅ |
 | `GET /api/config` | ✅ |
 | `PUT /api/config` | ✅ 僅更新（無既有值回 404）、白名單欄位、`org_code`／`langs` 唯讀 |
@@ -459,6 +459,7 @@ KV 的 TTL 特性正好合用：`KV.put(key, val, { expirationTtl: 600 })`
 | `DELETE /api/staff/:slug/image/:key` | ✅ |
 | `GET /api/build` | ✅ |
 | `POST /api/build` | ✅ |
+| `POST /api/maintenance/rebuild-index` | ✅ 重建 `index:{org}` 快取。名單欄位新增時（如 `updated_at`）用它補齊舊資料 |
 | `GET /api/password` | ✅ 回報 `configured`／`source`／`migrated` |
 | `POST /api/password` | ✅ 驗證舊密碼 → 政策檢查 → 寫入 KV `auth:{org}:password` |
 | `POST /api/auth/request-code` | ❌ 待新增（第 3 層） |
