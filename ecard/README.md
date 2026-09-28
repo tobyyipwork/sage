@@ -62,7 +62,9 @@ npm run fp:check
 > 若設了 `CLOUDFLARE_API_TOKEN` 環境變數，則會改用 REST API。
 
 📖 **完整說明**：
+- **同事試用前評估（先讀這個）** → [`docs/PILOT-READINESS.md`](docs/PILOT-READINESS.md)
 - **後台一鍵重建（推薦）** → [`docs/ADMIN-REBUILD.md`](docs/ADMIN-REBUILD.md)
+- 平台完成度與後續規劃 → [`docs/PLATFORM-ROADMAP.md`](docs/PLATFORM-ROADMAP.md)
 - 自動重建機制 → [`docs/AUTO-REBUILD.md`](docs/AUTO-REBUILD.md)
 - 雲端架構設計 → [`docs/CLOUD-ARCHITECTURE.md`](docs/CLOUD-ARCHITECTURE.md)
 - 部署步驟 → [`docs/CLOUD-DEPLOY.md`](docs/CLOUD-DEPLOY.md)
