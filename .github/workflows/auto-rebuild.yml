@@ -173,10 +173,28 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node ecard/cloud/scripts/kv-to-data.js
+        # 這一步除了同步資料，還會把 KV 裡的「存取暗號」（prefix:sage）
+        # 寫進 GITHUB_ENV，讓下一步的建置自動帶上 SITE_PREFIX。
+        #
+        # 為什麼暗號要繞這一大圈、不直接寫在 repo 裡？
+        #   因為 repo 是公開的 —— 暗號一旦進版控，等於告訴所有人門鎖號碼，
+        #   整層隱私防護就白做了。放在 KV 才安全。
 
       - name: 建置靜態檔
         if: steps.decide.outputs.go == 'true'
         run: node ecard/build/build.js
+        # 這裡刻意「不」宣告 SITE_PREFIX。
+        #
+        # 上一動若從 KV 讀到暗號，會寫進 GITHUB_ENV；
+        # GITHUB_ENV 的變數會由 runner 自動注入後續所有步驟，
+        # 所以這裡本來就讀得到，不需要（也不該）再寫一次。
+        #
+        # 為什麼不能寫 env: SITE_PREFIX: ${{ env.SITE_PREFIX }}？
+        #   因為 env 內插是在「workflow 解析階段」求值，
+        #   而 SITE_PREFIX 要到執行階段才由 GITHUB_ENV 產生 ——
+        #   解析時它還是空的，寫下去等於用空字串把它覆蓋掉，
+        #   結果就是暗號失效、建出公開版本。
+        #   這是 GitHub Actions 的經典陷阱，特別註記以免後人重蹈。
 
       - name: 提交並推送
         if: steps.decide.outputs.go == 'true'

@@ -19,7 +19,68 @@ const DATA_DIR = path.join(ROOT, 'data');
 const STAFF_DIR = path.join(DATA_DIR, 'staff');
 const TPL_DIR = path.join(ROOT, 'templates');
 const ASSET_SRC = path.join(ROOT, 'assets', 'images');
-const OUT = path.join(ROOT, 'dist');
+const DIST_ROOT = path.join(ROOT, 'dist');
+
+/* ── 存取暗號（site prefix） ──────────────────────────────────────────
+ *
+ * 為什麼需要這個？
+ *   名片含員工姓名、電郵、手機，放在 GitHub Pages 上是「有網址就看得見」。
+ *   機構不希望這些資料被隨便翻到、被搜尋引擎收錄，也不想被路人
+ *   用常見拼音（lee-siu-wah、wong-ka-ming…）列舉出全部員工。
+ *
+ * 為什麼用「URL 前綴」而不是「每張名片各自亂碼」？
+ *   靜態託管沒有任何存取控制，唯一能做的就是「路徑猜不到」。
+ *   整站共用一個暗號的好處：
+ *     - 名片網址仍保有可讀的 slug，你一眼看得出是誰
+ *     - 只要守好一個暗號，新同事加入不必另外發暗號
+ *     - 若哪天暗號外流，改一處（KV）就能全站換鎖
+ *
+ * 暗號從哪裡來？優先序（後者為前者未提供時的回落）：
+ *   1. 環境變數 SITE_PREFIX   ← 給 CI / 自動重建用
+ *   2. --prefix=<值> 命令列參數
+ *   3. 環境變數 SAGE_SITE_PREFIX
+ *   （刻意不從 config.json 讀 —— 那個檔案會進 repo，暗號就白設了）
+ *
+ * 未提供暗號時，行為與過去完全相同（輸出到 dist/），向後相容。
+ * ------------------------------------------------------------------ */
+const readPrefixArg = () => {
+  const arg = process.argv.find((a) => a.startsWith('--prefix='));
+  return arg ? arg.slice('--prefix='.length) : '';
+};
+
+/* 正規化：只留安全字元，去頭尾斜線與點。
+   暗號會直接變成目錄名稱與 URL 片段，放任任意字元會產生
+   跨平台路徑問題（Windows 不接受某些字元）與路徑逃逸風險
+   （例如 "../../etc" 若不過濾，就能寫到 dist 外面去）。
+   英數是最安全的選擇，故把不合法字元一律濾掉。 */
+const normalizePrefix = (raw) =>
+  String(raw || '').trim().replace(/[^A-Za-z0-9._-]/g, '').replace(/^[./]+|[./]+$/g, '');
+
+/* SITE_PREFIX / OUT / BASE_PATH 原本是模組載入時定死的 const。
+   但測試需要在同一行程內反覆以不同暗號建置（否則每次都要 spawn
+   子行程，而這個環境的子行程有相容性問題），所以改成由 prepare()
+   每次建置前重算。對外介面不變：build() 會先呼叫 prepare()。 */
+let SITE_PREFIX = '';
+let OUT = DIST_ROOT;
+let BASE_PATH = '';
+
+/** 依傳入參數／環境變數決定本次建置的暗號與輸出位置 */
+const prepare = (override) => {
+  const raw =
+    override !== undefined
+      ? override
+      : readPrefixArg() || process.env.SITE_PREFIX || process.env.SAGE_SITE_PREFIX || '';
+  SITE_PREFIX = normalizePrefix(raw);
+
+  /* 輸出目錄：有暗號時落在 dist/<暗號>/，否則維持 dist/ */
+  OUT = SITE_PREFIX ? path.join(DIST_ROOT, SITE_PREFIX) : DIST_ROOT;
+
+  /* BASE_PATH 是全站「絕對路徑」的唯一來源 —— canonical、hreflang、
+     QR code、sitemap、og:url 全部經過它，所以只要在這裡接上暗號，
+     整站對外網址就一致地多一層，不必到處補。 */
+  const configBase = (CONFIG.site.basePath || '').replace(/\/+$/, '');
+  BASE_PATH = SITE_PREFIX ? `${configBase}/${SITE_PREFIX}` : configBase;
+};
 
 const IMG_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 
@@ -39,12 +100,14 @@ const escHtml = (s = '') =>
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+/* config 必須先讀，因為 prepare() 要用到 basePath */
+const CONFIG = readJson(path.join(DATA_DIR, 'config.json'));
+
 /* ---------------- config ---------------- */
-const config = readJson(path.join(DATA_DIR, 'config.json'));
+const config = CONFIG;
 const LANGS = config.langs || ['zh', 'cn', 'en'];
 const DEFAULT_LANG = config.default_lang || 'zh';
 const SITE_URL = String(config.site.url).replace(/\/+$/, '');
-const BASE_PATH = (config.site.basePath || '').replace(/\/+$/, '');
 const HTML_LANG = { zh: 'zh-Hant', cn: 'zh-Hans', en: 'en' };
 const LANG_LABEL = { zh: '繁', cn: '简', en: 'EN' };
 const TABS_I18N = {
@@ -458,6 +521,7 @@ const renderIndex = () => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow,noarchive,noimageindex">
 <title>${escHtml(config.org[lang])} - E-Card</title>
 <meta name="description" content="${escHtml(config.org[lang])} 電子名片">
 <link rel="canonical" href="${escHtml(SITE_URL + BASE_PATH + '/')}">
@@ -493,19 +557,61 @@ const renderSitemap = () => {
 const escXml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /* ---------------- main ---------------- */
-function build() {
+function build(opts = {}) {
+  prepare(opts.prefix);
   loadStaff();
   fs.mkdirSync(OUT, { recursive: true });
 
   const currentSlugs = new Set(staffs.map((s) => s.data.slug));
+  const KNOWN_STATIC = new Set(['assets', 'index.html', 'sitemap.xml', 'robots.txt', '.nojekyll']);
 
   /* Clean stale staff output (only the directories that no longer exist).
      We intentionally do NOT wipe the whole dist/ — that trips bulk-delete
      guards and also removes the static files we are about to re-create anyway. */
+
+  /* ── 第一段：清掉 dist/ 底下「不屬於本次輸出位置」的殘留 ─────────────
+   *
+   * 這裡是整個隱私機制最容易被忽略、卻最致命的環節。
+   *
+   * 當暗號從「無」變成「有」時，輸出位置由 dist/ 搬到 dist/<暗號>/，
+   * 但 dist/ 底下**舊的** chan-tai-man/ 等目錄依然原封不動留著 ——
+   * 那些正是舊的公開網址，若不清掉，暗號設了等於沒設，
+   * 陌生人照樣能用 / sage/ecard/dist/chan-tai-man/ 看到員工資料。
+   *
+   * 判斷規則：在 DIST_ROOT 底下，凡是不等於「當前 prefix 目錄」、
+   * 也不是已知靜態檔（assets、robots.txt…）的**目錄**，
+   * 一律視為殘留並刪除。
+   *
+   * 為什麼要這麼兇？因為這裡的失敗模式是「靜默的隱私外洩」：
+   * 多留一個目錄不會有任何錯誤訊息，卻讓防護完全失效。
+   * 寧可多清，不可漏清。
+   *
+   * 檔案也要清 —— 而且這裡更危險：dist/index.html 是「員工列表頁」，
+   * 上線在 dist/ 根目錄等於把所有人一次列出來。
+   * 它不像名片目錄那樣放在子目錄裡，很容易被「只清目錄」的邏輯漏掉。 */
+  if (fs.existsSync(DIST_ROOT) && OUT !== DIST_ROOT) {
+    for (const entry of fs.readdirSync(DIST_ROOT)) {
+      const p = path.join(DIST_ROOT, entry);
+      if (fs.statSync(p).isDirectory()) {
+        if (KNOWN_STATIC.has(entry)) continue;   // assets 等靜態目錄保留
+        if (entry === SITE_PREFIX) continue;     // 當前暗號目錄保留
+        fs.rmSync(p, { recursive: true, force: true });
+      } else {
+        /* 根目錄的檔案：.nojekyll 與 assets 是 GitHub Pages 運作必需，
+           其餘（index.html / robots.txt / sitemap.xml）都是舊版殘留，清掉。 */
+        if (entry === '.nojekyll') continue;
+        fs.rmSync(p, { force: true });
+      }
+    }
+  }
+
+  /* ── 第二段：清掉「當前輸出位置」裡已無對應名片的舊目錄 ───────────── */
   if (fs.existsSync(OUT)) {
     for (const entry of fs.readdirSync(OUT)) {
-      // 'assets' 與 'admin' 不是名片目錄，不可誤刪
-      if (entry === 'assets' || entry === 'admin') continue;
+      /* 'assets' 不是名片目錄，不可誤刪。
+         'admin' 則相反 —— 它是舊版留下的殘留目錄（後台曾複製到這裡），
+         現在後台不再對外提供，所以不再保護它，讓它被清掉。 */
+      if (entry === 'assets') continue;
       const p = path.join(OUT, entry);
       if (fs.statSync(p).isDirectory() && !currentSlugs.has(entry)) {
         fs.rmSync(p, { recursive: true, force: true });
@@ -535,26 +641,49 @@ function build() {
   }
   write('index.html', renderIndex());
   write('sitemap.xml', renderSitemap());
-  write('robots.txt', `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}${BASE_PATH}/sitemap.xml\n`);
+
+  /* robots.txt —— 刻意「全部禁止」。
+   *
+   * 這裡曾經是 Allow: / 並公布 sitemap，等於主動邀請搜尋引擎
+   * 把每位員工的姓名、電郵、手機收錄進搜尋結果。那正是要避免的事。
+   *
+   * 誠實說明它的效力：robots.txt 只是「請求」爬蟲別來，
+   * 不具約束力（惡意爬蟲與直接點連結的人一概不受影響）。
+   * 真正擋住隨機訪客的是網址中的暗號（site prefix）——
+   * 沒暗號連 404 都撈不到。robots 是第二層，用來避免被搜尋引擎索引。
+   *
+   * 也不再列出 sitemap：公布一份「所有員工頁面」的清單，
+   * 與「不想被翻到」的目標直接衝突。
+   * sitemap.xml 仍然產生（方便日後內部使用），但不在 robots 中曝光。 */
+  write('robots.txt', `User-agent: *\nDisallow: /\n`);
   write('.nojekyll', '');
 
-  /* 後台管理介面
-     管理介面原始檔在 admin/public/index.html（本機開發用路徑），
-     但部署後若照這個路徑，網址會是 .../admin/public/ — 又長又容易記錯。
-     這裡把它複製一份到 dist/admin/index.html，
-     讓正式網址成為乾淨的 .../admin/。 */
+  /* 後台管理介面 —— 刻意「不」複製進 dist/。
+   *
+   * 這裡本來會把 admin/public/index.html 複製一份到 dist/admin/index.html，
+   * 讓後台網址成為乾淨的 .../dist/admin/。方便，但代價是把登入頁
+   * 攤在公開網路上 —— 雖然頁面本身不含密碼（登入一律打 Worker API，
+   * 未登入一律 401），但公開展示「這裡有後台可以打」本身就是多餘的風險。
+   *
+   * 現在的作法：後台只在本機以 admin/public/index.html 開啟（開發用），
+   * 部署對外不提供。若日後真的需要遠端使用後台，
+   * 應改由 Worker 在「已驗證身分」的路徑下提供，而不是放進公開的靜態站。 */
   const adminSrc = path.join(ROOT, 'admin', 'public', 'index.html');
   if (fs.existsSync(adminSrc)) {
-    const adminDir = path.join(OUT, 'admin');
-    fs.mkdirSync(adminDir, { recursive: true });
-    fs.copyFileSync(adminSrc, path.join(adminDir, 'index.html'));
+    console.log('  (後台未複製進 dist —— 刻意不對外提供)');
   }
 
-  console.log(`✓ built ${staffs.length} staff × ${LANGS.length} langs → dist/`);
+  const outLabel = SITE_PREFIX ? `dist/${SITE_PREFIX}/` : 'dist/';
+  console.log(`✓ built ${staffs.length} staff × ${LANGS.length} langs → ${outLabel}`);
+  if (SITE_PREFIX) {
+    console.log(`  存取暗號已啟用：網址需含 /${SITE_PREFIX}/ 才可開啟`);
+  } else {
+    console.log('  ⚠ 未設定存取暗號 —— 所有名片公開可讀（本機開發正常，正式部署請設 SITE_PREFIX）');
+  }
   console.log(staffs.map((s) => `  /${s.data.slug}/ (${LANGS.map((l) => `${l}:${staffPagePath(s.data.slug, l)}`).join(', ')})`).join('\n'));
   return staffs.length;
 }
 
 /* run directly: node build/build.js  — or require() to call build() in-process */
 if (require.main === module) build();
-module.exports = { build };
+module.exports = { build, normalizePrefix };

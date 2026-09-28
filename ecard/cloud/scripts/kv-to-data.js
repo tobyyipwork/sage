@@ -25,7 +25,7 @@
  *   ORG_CODE               機構代碼，預設 sage
  */
 
-import { writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync, readFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync, readFileSync, appendFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { assertRemoteKvReady, findWorkingWrangler, EnvError } from './env-utils.mjs';
@@ -234,6 +234,43 @@ if (!config) {
 }
 writeJsonStable(join(DATA_DIR, 'config.json'), config);
 console.log('  ✓ data/config.json');
+
+/* 1b. 存取暗號（site prefix）
+ *
+ * 暗號刻意「不存在 repo 裡」—— 它若進了版控，公開 repo 一看就穿，
+ * 整層防護白做。所以它只住在 KV，由這裡讀出來交給建置步驟使用。
+ *
+ * 怎麼交給建置步驟？兩種管道，哪個可用就用哪個：
+ *   1. GITHUB_ENV    → GitHub Actions 會把它變成後續步驟的環境變數
+ *                      並自動在日誌中遮罩（若已設為 secret）
+ *   2. SITE_PREFIX   → 直接匯出（本機執行時沒有 GITHUB_ENV）
+ *
+ * 寫入哪個 key？優先用獨立的 prefix:{ORG}，
+ * 沒有才回頭看 config.site.prefix（相容早期只設在 config 的情況）。
+ *
+ * 讀不到暗號時「不視為錯誤」—— 本機開發、或機構還沒啟用隱私模式時
+ * 本來就沒有暗號。但會印出明顯警語，避免在 CI 靜默產出公開版本。 */
+const prefixFromKv =
+  (await kvGet(`prefix:${ORG}`)) ||
+  (config.site && config.site.prefix) ||
+  '';
+
+const prefixValue = typeof prefixFromKv === 'string' ? prefixFromKv.trim() : '';
+
+if (prefixValue) {
+  process.env.SITE_PREFIX = prefixValue;
+  if (process.env.GITHUB_ENV) {
+    /* GitHub Actions：寫進 GITHUB_ENV，後續步驟即可讀到 SITE_PREFIX */
+    appendFileSync(process.env.GITHUB_ENV, `SITE_PREFIX=${prefixValue}\n`, 'utf8');
+    console.log(`  ✓ 存取暗號已載入（${prefixValue.length} 字元，值不在日誌顯示）`);
+  } else {
+    console.log(`  ✓ 存取暗號已載入：${prefixValue}`);
+  }
+} else {
+  console.log('  ⚠ KV 沒有設定存取暗號（prefix:' + ORG + '）');
+  console.log('    → 建置結果將為「未加密」版本，所有人皆可瀏覽。');
+  console.log('    → 正式環境請設定：wrangler kv key put --binding=ECARD_KV "prefix:' + ORG + '" "<暗號>"');
+}
 
 // 2. 名單
 const index = (await kvGet(`index:${ORG}`)) || [];
