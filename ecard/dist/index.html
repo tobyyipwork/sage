@@ -4,12 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex,nofollow,noarchive,noimageindex">
-<title>香港耆康老人福利會 - E-Card</title>
-<meta name="description" content="香港耆康老人福利會 電子名片">
+<title>香港耆康老人福利會</title>
+<meta name="description" content="香港耆康老人福利會">
 <link rel="canonical" href="https://tobyyipwork.github.io/sage/ecard/dist/">
-<meta property="og:title" content="香港耆康老人福利會 - E-Card">
-<meta property="og:url" content="https://tobyyipwork.github.io/sage/ecard/dist/">
-<meta property="og:image" content="https://tobyyipwork.github.io/sage/ecard/dist/assets/logo.png">
 <meta name="theme-color" content="#00834d">
 <style>/* SAGE E-Card — shared styles (card page + staff index) */
 :root {
@@ -450,6 +447,22 @@ a { color: inherit; }
 .staff-card .avatar svg { width: 2rem; height: 2rem; color: #9ca3af; }
 .staff-card .n { font-size: 0.9375rem; font-weight: 700; }
 .staff-card .t { font-size: 0.75rem; color: var(--ink-faint); }
+
+/* 列表頁的提示文字。
+   列表頁不再列出員工（改為只顯示機構名稱），
+   這裡是唯一給訪客的說明，所以刻意做得安靜、不搶眼。 */
+.index-note {
+  grid-column: 1 / -1;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
 .index-page .site-foot {
   text-align: center;
   font-size: 0.75rem;
@@ -460,20 +473,11 @@ a { color: inherit; }
 <body class="index-page">
 <header class="site-head">
     <img src="assets/logo.png" alt="香港耆康老人福利會">
-    <h1>香港耆康老人福利會 電子名片</h1>
-    <p>1.2.0</p>
+    <h1>香港耆康老人福利會</h1>
+    <p>電子名片系統</p>
 </header>
 <main class="staff-grid">
-        <a class="staff-card" href="/sage/ecard/dist/chan-tai-man/">
-            <span class="avatar"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 4-5.5 8-5.5s7.2 1.5 8 5.5"/></svg></span>
-            <span class="n">陳大文</span>
-            <span class="t">示範用戶</span>
-        </a>
-        <a class="staff-card" href="/sage/ecard/dist/lee-siu-wah/">
-            <span class="avatar"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 4-5.5 8-5.5s7.2 1.5 8 5.5"/></svg></span>
-            <span class="n">李小華</span>
-            <span class="t">示範用戶</span>
-        </a>
+    <p class="index-note">請使用同事提供的專屬連結開啟電子名片。</p>
 </main>
 <footer class="site-foot">
     <p>© 2026 香港耆康老人福利會 版權所有</p>

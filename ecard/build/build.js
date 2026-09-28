@@ -439,43 +439,45 @@ const renderStaffPage = (staff) => {
 const cssSafe = (css) => css.replace(/<\/style/gi, '<\\/style');
 
 /* ---------------- index page (staff list) ---------------- */
+
+/* 列表頁「遮眼」處理 —— 刻意不列出任何員工。
+ *
+ * 原本這裡會產生一份員工清單（頭像、姓名、職稱，每個都是連到名片的連結），
+ * 等於打開站台首頁就一次看到「這間機構有誰」。
+ *
+ * 為什麼改成不列名單？
+ *   這個頁面是公開的、沒有存取控制，而員工名單本身（誰在職、姓名寫法）
+ *   就屬於不宜公開的資訊 —— 即使不點進個別名片，光是列出來就有價值。
+ *
+ * 效能上的附帶好處：不再為列表頁複製頭像檔，少了一批重複的圖片輸出。
+ *
+ * ⚠️ 這只是「不主動列出」，不是「保護」。
+ *    個別名片仍在 dist/<slug>/ 且可被直接開啟 ——
+ *    詳見 README「隱私與曝光控制」的效力邊界說明。
+ *    若需要真正的存取控制，得改用 Cloudflare Access 之類的閘門。
+ */
 const renderIndex = () => {
   const lang = DEFAULT_LANG;
-  const cards = staffs
-    .map(({ data: s }) => {
-      const avatar = s.images?.avatar ? resolveImage(s.slug, 'avatar') : null;
-      if (avatar) copyFile(avatar.abs, avatar.rel);
-      const inner = avatar ? `<img src="${avatar.rel}" alt="" loading="lazy">` : icon('user');
-      return `<a class="staff-card" href="${escHtml(staffPagePath(s.slug, lang))}">
-            <span class="avatar">${inner}</span>
-            <span class="n">${escHtml(s.name[lang])}</span>
-            <span class="t">${escHtml(s.title[lang] || '')}</span>
-        </a>`;
-    })
-    .join('\n        ');
   return `<!DOCTYPE html>
 <html lang="${HTML_LANG[lang]}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex,nofollow,noarchive,noimageindex">
-<title>${escHtml(config.org[lang])} - E-Card</title>
-<meta name="description" content="${escHtml(config.org[lang])} 電子名片">
+<title>${escHtml(config.org[lang])}</title>
+<meta name="description" content="${escHtml(config.org[lang])}">
 <link rel="canonical" href="${escHtml(SITE_URL + BASE_PATH + '/')}">
-<meta property="og:title" content="${escHtml(config.org[lang])} - E-Card">
-<meta property="og:url" content="${escHtml(SITE_URL + BASE_PATH + '/')}">
-<meta property="og:image" content="${escHtml(SITE_URL + BASE_PATH + '/assets/logo.png')}">
 <meta name="theme-color" content="#00834d">
 <style>${cssSafe(CSS)}</style>
 </head>
 <body class="index-page">
 <header class="site-head">
     <img src="assets/logo.png" alt="${escHtml(config.org[lang])}">
-    <h1>${escHtml(config.org[lang])} 電子名片</h1>
-    <p>${escHtml(config.site.version)}</p>
+    <h1>${escHtml(config.org[lang])}</h1>
+    <p>電子名片系統</p>
 </header>
 <main class="staff-grid">
-        ${cards}
+    <p class="index-note">請使用同事提供的專屬連結開啟電子名片。</p>
 </main>
 <footer class="site-foot">
     <p>${escHtml(config.site.copyright)}</p>
@@ -485,6 +487,20 @@ const renderIndex = () => {
 };
 
 /* ---------------- sitemap + robots ---------------- */
+
+/* sitemap 預設「不產生」。
+ *
+ * 原因：sitemap 的用途是「告訴搜尋引擎這個站有哪些頁面」，
+ * 而它會逐條列出每位員工的名片網址（含三語）——
+ * 這正好是最不該主動提供出去的資訊：等於附上一份完整名單。
+ *
+ * 與 robots.txt 的 Disallow 併用時，sitemap 更是自相矛盾：
+ * 一邊說「不要收錄」，一邊遞上所有頁面的清單。
+ *
+ * 若日後真的需要 sitemap（例如站台改為公開、想被搜尋到），
+ * 把 SITEMAP_ENABLED 設為 true 即可恢復，程式碼仍保留著。 */
+const SITEMAP_ENABLED = false;
+
 const renderSitemap = () => {
   const urls = staffs.flatMap(({ data: s }) =>
     LANGS.map((l) => `  <url><loc>${escXml(staffUrl(s.slug, l))}</loc><lastmod>${s.updated_at?.slice(0, 10) || ''}</lastmod></url>`)
@@ -537,7 +553,22 @@ function build() {
     fs.writeFileSync(path.join(slugDir, `${s.slug}.vcf`), buildVcf(s, { config }));
   }
   write('index.html', renderIndex());
-  write('sitemap.xml', renderSitemap());
+
+  /* sitemap：只在啟用時產生，否則主動移除舊檔。
+   *
+   * 「不產生」不等於「檔案會消失」—— 上一次建置留下的 sitemap.xml
+   * 會原封不動留在 dist/ 裡繼續被公開讀取。這是很容易漏掉的一點：
+   * 停用某個輸出時，必須同時清掉它的舊產物，否則停用只是自欺。
+   * （同一個坑在暗號功能時期也踩過：舊目錄不會自己消失。） */
+  if (SITEMAP_ENABLED) {
+    write('sitemap.xml', renderSitemap());
+  } else {
+    const stale = path.join(OUT, 'sitemap.xml');
+    if (fs.existsSync(stale)) {
+      fs.rmSync(stale, { force: true });
+      console.log('  (sitemap.xml 已移除 —— 不公開員工頁面清單)');
+    }
+  }
 
   /* robots.txt —— 刻意「全部禁止」。
    *
@@ -548,11 +579,7 @@ function build() {
    * 不具約束力（惡意爬蟲與直接點連結的人一概不受影響）。
    * 它擋的是「搜尋引擎索引」，不是「知道網址的人」。
    * 若需要連知道網址都進不去，得靠具存取控制的託管（如 Cloudflare Access），
-   * 靜態的 GitHub Pages 做不到。
-   *
-   * 也不再列出 sitemap：公布一份「所有員工頁面」的清單，
-   * 與「不想被翻到」的目標直接衝突。
-   * sitemap.xml 仍然產生（方便日後內部使用），但不在 robots 中曝光。 */
+   * 靜態的 GitHub Pages 做不到。 */
   write('robots.txt', `User-agent: *\nDisallow: /\n`);
   write('.nojekyll', '');
 

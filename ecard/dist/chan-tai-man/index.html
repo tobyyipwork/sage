@@ -461,6 +461,22 @@ a { color: inherit; }
 .staff-card .avatar svg { width: 2rem; height: 2rem; color: #9ca3af; }
 .staff-card .n { font-size: 0.9375rem; font-weight: 700; }
 .staff-card .t { font-size: 0.75rem; color: var(--ink-faint); }
+
+/* 列表頁的提示文字。
+   列表頁不再列出員工（改為只顯示機構名稱），
+   這裡是唯一給訪客的說明，所以刻意做得安靜、不搶眼。 */
+.index-note {
+  grid-column: 1 / -1;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
 .index-page .site-foot {
   text-align: center;
   font-size: 0.75rem;
