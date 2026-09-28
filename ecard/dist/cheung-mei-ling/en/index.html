@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 名片含員工個資，不應被搜尋引擎收錄。
+         注意這只擋索引，擋不住「知道網址的人」——
+         noindex 是請搜尋引擎不要建立索引，屬於禮貌性請求。 -->
+    <meta name="robots" content="noindex,nofollow,noarchive,noimageindex">
+    <title>Cheung Mei Ling - SAGE E-Card</title>
+    <meta name="description" content="Demo User · The Hong Kong Society for the Aged">
+    <link rel="canonical" href="https://tobyyipwork.github.io/sage/ecard/dist/cheung-mei-ling/en/">
+    <link rel="icon" type="image/png" href="../../assets/logo.png">
+    <meta property="og:type" content="profile">
+    <meta property="og:title" content="Cheung Mei Ling - SAGE E-Card">
+    <meta property="og:description" content="Demo User · The Hong Kong Society for the Aged">
+    <meta property="og:url" content="https://tobyyipwork.github.io/sage/ecard/dist/cheung-mei-ling/en/">
+    <meta property="og:image" content="https://tobyyipwork.github.io/sage/ecard/dist/assets/logo.png">
+    <meta property="og:site_name" content="The Hong Kong Society for the Aged">
+    <meta name="theme-color" content="#00834d">
+    <link rel="alternate" hreflang="zh-Hant" href="https://tobyyipwork.github.io/sage/ecard/dist/cheung-mei-ling/">
+    <link rel="alternate" hreflang="zh-Hans" href="https://tobyyipwork.github.io/sage/ecard/dist/cheung-mei-ling/cn/">
+    <link rel="alternate" hreflang="en" href="https://tobyyipwork.github.io/sage/ecard/dist/cheung-mei-ling/en/">
+    <link rel="alternate" hreflang="x-default" href="https://tobyyipwork.github.io/sage/ecard/dist/cheung-mei-ling/">
+    <style>/* SAGE E-Card — shared styles (card page + staff index) */
+:root {
+  --primary: #00834d;
+  --primary-dark: #006b3f;
+  --bg: #f1f4f9;
+  --card: #ffffff;
+  --ink: #1f2937;
+  --ink-soft: #4b5563;
+  --ink-faint: #6b7280;
+  --line: #e5e7eb;
+  --line-soft: #f3f4f6;
+  --radius: 0.75rem;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  background-color: var(--bg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang HK",
+    "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+a { color: inherit; }
+
+.card-container {
+  max-width: 28rem;
+  margin: 0 auto;
+  background-color: var(--card);
+  min-height: 100vh;
+  box-shadow: 0 4px 24px rgba(21, 101, 192, 0.08);
+  position: relative;
+  padding-bottom: 6.5rem;
+}
+
+/* ---- Language switcher ---- */
+.lang-switcher {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 20;
+  display: flex;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  background-color: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 9999px;
+  padding: 0.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.lang-btn {
+  padding: 0.125rem 0.55rem;
+  border-radius: 9999px;
+  transition: all 0.2s;
+  text-decoration: none;
+  color: #fff;
+}
+.lang-btn.active { background-color: #fff; color: #111827; font-weight: 700; }
+.lang-btn.inactive:hover { background-color: rgba(255, 255, 255, 0.15); }
+
+/* ---- Banner ---- */
+.banner-bg {
+  height: 10rem;
+  position: relative;
+  overflow: hidden;
+  background-color: #e8edf5;
+}
+.banner-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.banner-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #00834d 0%, #0e9d5f 55%, #57bb8a 100%);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* ---- Profile ---- */
+.profile-sec { padding: 1rem 1.25rem 0; position: relative; }
+.avatar-box {
+  position: absolute;
+  top: -3rem;
+  right: 1.25rem;
+  width: 6rem;
+  height: 6rem;
+  border-radius: 9999px;
+  border: 4px solid #fff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+  background-color: #fff;
+}
+.avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profile-info { padding-right: 6rem; }
+.name { font-size: 1.5rem; font-weight: 700; color: #111827; line-height: 1.25; }
+.title { font-size: 0.875rem; font-weight: 600; color: var(--ink-soft); margin-top: 0.375rem; line-height: 1.25; }
+
+/* ---- Contact list ---- */
+.contact-list {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-size: 0.875rem;
+  color: var(--ink-faint);
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 1rem;
+  list-style: none;
+}
+.contact-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+.contact-icon { color: #9ca3af; width: 1.1rem; flex-shrink: 0; display: flex; }
+.contact-icon svg { width: 1.1rem; height: 1.1rem; }
+.contact-label { overflow-wrap: anywhere; }
+.link-email { color: var(--primary); text-decoration: none; }
+.link-email:hover { text-decoration: underline; }
+
+/* ---- Chat buttons ---- */
+.chat-buttons {
+  margin-top: 1rem;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.icon-btn {
+  width: 4.5rem;
+  height: 2.4rem;
+  border-radius: 9999px;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+  background: #fff;
+  cursor: pointer;
+  text-decoration: none;
+}
+.icon-btn svg { width: 1.6rem; height: 1.6rem; }
+.icon-btn:hover { background-color: #f9fafb; }
+.wechat-btn svg { color: #22c55e; }
+.whatsapp-btn svg { color: #16a34a; }
+.chat-label {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+/* ---- Modal ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 1rem;
+}
+.modal-card {
+  background-color: #fff;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  max-width: 20rem;
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+}
+.modal-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.9rem;
+  color: #9ca3af;
+  font-size: 1.4rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+}
+.modal-close:hover { color: #4b5563; }
+.modal-title { font-size: 0.875rem; font-weight: 600; color: var(--ink); margin-bottom: 1rem; }
+.modal-img-box { background-color: #f9fafb; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid var(--line-soft); }
+.modal-img { width: 12rem; height: 12rem; object-fit: contain; display: block; }
+.modal-hint { font-size: 0.6875rem; color: #9ca3af; margin-top: 0.75rem; text-align: center; }
+.hidden { display: none !important; }
+
+/* ---- Tabs ---- */
+.nav-tabs { margin-top: 1.5rem; border-bottom: 1px solid var(--line); }
+.nav-container {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.nav-item {
+  padding: 0 0.25rem 0.75rem;
+  text-decoration: none;
+  color: var(--ink-faint);
+  border-bottom: 2px solid transparent;
+}
+.nav-item.active { border-bottom-color: var(--primary); color: var(--primary); }
+.nav-item:hover { color: var(--ink-soft); }
+
+/* ---- Sections ---- */
+.content-sec { padding: 0 1.25rem; margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
+.section-title { font-size: 1rem; font-weight: 700; color: #111827; margin-bottom: 0.5rem; }
+.about-text { font-size: 0.875rem; color: var(--ink-soft); line-height: 1.625; text-align: justify; white-space: pre-line; }
+.hr-line { border: 0; border-top: 1px solid var(--line-soft); }
+
+.social-list { display: flex; flex-wrap: wrap; gap: 0.875rem; align-items: center; }
+.social-item {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: background-color 0.2s;
+  background: #fff;
+}
+.social-item svg { width: 1.3rem; height: 1.3rem; }
+.social-item:hover { background-color: #f9fafb; }
+
+/* ---- QR share block ---- */
+.qr-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  background-color: #fff;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.75rem;
+}
+.qr-svg { width: 11rem; height: 11rem; display: block; }
+
+/* QR accordion (<details>) */
+.qr-acc {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background-color: #fff;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.qr-acc[open] { border-color: var(--primary); box-shadow: 0 1px 8px rgba(0, 131, 77, 0.08); }
+.qr-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.qr-summary::-webkit-details-marker { display: none; }
+.qr-summary::marker { content: ''; }
+.qr-summary:hover { background-color: #f9fafb; }
+.qr-summary-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  background-color: rgba(0, 131, 77, 0.08);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qr-summary-icon svg { width: 1.15rem; height: 1.15rem; }
+.qr-summary-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.qr-summary-title { font-size: 0.9375rem; font-weight: 600; color: #111827; }
+.qr-summary-hint { font-size: 0.75rem; color: var(--ink-faint); margin-top: 0.1rem; }
+.qr-summary-chevron {
+  flex-shrink: 0;
+  color: var(--ink-faint);
+  display: flex;
+  transition: transform 0.25s ease;
+}
+.qr-summary-chevron svg { width: 1rem; height: 1rem; }
+.qr-acc[open] .qr-summary-chevron { transform: rotate(180deg); }
+.qr-acc[open] .qr-summary { border-bottom: 1px solid var(--line-soft); }
+.qr-panel { padding: 1rem; animation: qr-reveal 0.25s ease; }
+@keyframes qr-reveal {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qr-panel { animation: none; }
+  .qr-summary-chevron { transition: none; }
+}
+
+.links-list { display: flex; flex-direction: column; gap: 0.625rem; }
+.link-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem;
+  background-color: rgba(239, 246, 255, 0.4);
+  border: 1px solid #dbeafe;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+.link-item:hover { background-color: #eff6ff; }
+.link-icon-box {
+  width: 2.25rem;
+  height: 2.25rem;
+  background-color: #fff;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-soft);
+  flex-shrink: 0;
+}
+.link-icon-box svg { width: 1rem; height: 1rem; }
+.link-text { font-size: 0.875rem; font-weight: 500; flex: 1; transition: color 0.2s; }
+.link-chevron { color: #d1d5db; flex-shrink: 0; }
+.link-chevron svg { width: 0.8rem; height: 0.8rem; }
+
+/* ---- Footer ---- */
+.footer-sec {
+  text-align: center;
+  font-size: 0.6875rem;
+  color: #9ca3af;
+  padding-top: 2rem;
+  padding-bottom: 1rem;
+  user-select: none;
+}
+.footer-sec .ver { opacity: 0.8; margin-bottom: 0.25rem; }
+
+/* ---- Fixed save bar ---- */
+.fixed-btn-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 28rem;
+  background-color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 1rem;
+  border-top: 1px solid var(--line-soft);
+  z-index: 40;
+  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
+}
+.save-btn {
+  width: 80%;
+  margin: 0 auto;
+  background-color: var(--primary);
+  color: #fff;
+  text-align: center;
+  padding: 0.625rem 0;
+  border-radius: 0.75rem;
+  font-weight: 700;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+.save-btn svg { width: 1.1rem; height: 1.1rem; }
+.save-btn:hover { background-color: var(--primary-dark); }
+
+@media print {
+  .fixed-btn-bar, .lang-switcher { display: none !important; }
+  .card-container { box-shadow: none; }
+}
+
+/* ---- Staff index page ---- */
+.index-page .site-head {
+  background: linear-gradient(135deg, #00834d 0%, #0e9d5f 60%, #57bb8a 100%);
+  color: #fff;
+  padding: 3rem 1.25rem 3.5rem;
+  text-align: center;
+}
+.index-page .site-head img { width: 9rem; height: auto; margin-bottom: 0.75rem; }
+.index-page .site-head h1 { font-size: 1.4rem; font-weight: 700; }
+.index-page .site-head p { font-size: 0.875rem; opacity: 0.9; margin-top: 0.25rem; }
+.staff-grid {
+  max-width: 28rem;
+  margin: -1.75rem auto 0;
+  padding: 0 1.25rem 4rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.875rem;
+}
+.staff-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-align: center;
+  text-decoration: none;
+  color: var(--ink);
+  transition: transform 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.staff-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(21, 101, 192, 0.12); }
+.staff-card .avatar {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: #e8edf5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.staff-card .avatar img { width: 100%; height: 100%; object-fit: cover; }
+.staff-card .avatar svg { width: 2rem; height: 2rem; color: #9ca3af; }
+.staff-card .n { font-size: 0.9375rem; font-weight: 700; }
+.staff-card .t { font-size: 0.75rem; color: var(--ink-faint); }
+
+/* 列表頁的提示文字。
+   列表頁不再列出員工（改為只顯示機構名稱），
+   這裡是唯一給訪客的說明，所以刻意做得安靜、不搶眼。 */
+.index-note {
+  grid-column: 1 / -1;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.index-page .site-foot {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  padding: 1.5rem 1rem 2.5rem;
+}</style>
+</head>
+<body>
+    <div class="card-container">
+
+        <div class="lang-switcher" role="group" aria-label="Language">
+            <a href="/sage/ecard/dist/cheung-mei-ling/" class="lang-btn inactive" lang="zh-Hant">繁</a>
+            <a href="/sage/ecard/dist/cheung-mei-ling/cn/" class="lang-btn inactive" lang="zh-Hans">简</a>
+            <a href="/sage/ecard/dist/cheung-mei-ling/en/" class="lang-btn active" lang="en">EN</a>
+        </div>
+
+        <!-- Banner -->
+        <div class="banner-bg">
+            <div class="banner-fallback"><span>香港耆康老人福利會</span></div>
+        </div>
+
+        <!-- Profile -->
+        <div class="profile-sec">
+            <div class="avatar-box" aria-hidden="true">
+                <img src="../../assets/logo.png" alt="香港耆康老人福利會" class="avatar-img">
+            </div>
+            <div class="profile-info">
+                <h2 class="name">Cheung Mei Ling</h2>
+                <p class="title">Demo User</p>
+            </div>
+
+            <ul class="contact-list">
+                <li class="contact-item"><span class="contact-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4.5" width="20" height="15" rx="2"/><path d="m2.5 6.5 9.5 7 9.5-7"/></svg></span><a class="link-email contact-label" href="mailto:user@sage.org.hk">user@sage.org.hk</a></li>
+                <li class="contact-item"><span class="contact-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z"/></svg></span><a class="contact-label" href="tel:+85225112235" style="text-decoration:none;color:inherit;">2511 2235</a></li>
+                <li class="contact-item"><span class="contact-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span><a class="contact-label" href="tel:+85298765432" style="text-decoration:none;color:inherit;">9876 5432</a></li>
+                <li class="contact-item"><span class="contact-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-5h6v5"/><path d="M9 9h.01M15 9h.01M9 12.5h.01M15 12.5h.01"/></svg></span><span class="contact-label" style="font-weight:500;color:#374151;">The Hong Kong Society for the Aged</span></li>
+                <li class="contact-item" style="align-items:flex-start;"><span class="contact-icon" style="margin-top:0.15rem;"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span><span class="contact-label">11/F, HKFYG Building, 21 Pak Fuk Road, North Point, Hong Kong</span></li>
+            </ul>
+
+            <div class="chat-buttons">
+                <a href="https://wa.me/85298765432" target="_blank" rel="noopener" title="WhatsApp" class="icon-btn whatsapp-btn"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Zm0 1.8a7.2 7.2 0 1 1-3.7 13.4l-.3-.2-2.4.6.6-2.3-.2-.3A7.2 7.2 0 0 1 12 4.8Zm-3.4 3.4c-.15 0-.4.05-.6.3-.2.25-.8.8-.8 1.95s.8 2.25.95 2.4c.1.2 1.6 2.55 3.95 3.5 1.95.8 2.35.65 2.75.6.4-.05 1.3-.55 1.5-1.05.2-.5.2-.95.15-1.05l-.85-.4s-.85-.4-.95-.45c-.15-.05-.25-.05-.35.15-.1.2-.4.5-.5.6-.1.1-.2.15-.35.05a6.4 6.4 0 0 1-2.5-1.55 6.3 6.3 0 0 1-1.3-1.8c-.1-.2 0-.3.05-.4l.4-.45c.15-.15.2-.3.3-.5.1-.2.05-.35 0-.5l-.7-1.65c-.2-.4-.4-.35-.55-.35Z"/></svg></a>
+                <span class="chat-label">WhatsApp</span>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="nav-tabs">
+            <nav class="nav-container">
+                <a href="#about" class="nav-item active">About</a>
+                <a href="#links" class="nav-item ">Links</a>
+            </nav>
+        </div>
+
+        <!-- Content -->
+        <div class="content-sec">
+                        <section id="about">
+                <h3 class="section-title">About</h3>
+                <p class="about-text">SAGE keeps pace with the times and evolving social conditions. Anticipating the needs of different elderly groups and their carers, we pioneer new services, provide attentive care, and encourage older persons to keep contributing to society.</p>
+            </section>
+            
+            <hr class="hr-line">
+            
+                        <section id="links">
+                <h3 class="section-title">Links</h3>
+                <div class="links-list">
+                                            <a href="https://www.sage.org.hk" target="_blank" rel="noopener" class="link-item">
+                            <div class="link-icon-box" style="color:#9b4c8b;"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19"/><path d="M12 2.5a14.5 14.5 0 0 1 0 19 14.5 14.5 0 0 1 0-19Z"/></svg></div>
+                            <span class="link-text" style="color:#9b4c8b;">Official Site</span>
+                            <span class="link-chevron"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+                        </a>
+                                            <a href="https://www.sage.org.hk/tc/contact_us" target="_blank" rel="noopener" class="link-item">
+                            <div class="link-icon-box" style="color:#2563eb;"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-5h6v5"/><path d="M9 9h.01M15 9h.01M9 12.5h.01M15 12.5h.01"/></svg></div>
+                            <span class="link-text" style="color:#2563eb;">Contact Us</span>
+                            <span class="link-chevron"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+                        </a>
+                                            <a href="https://www.sage.org.hk/tc/services" target="_blank" rel="noopener" class="link-item">
+                            <div class="link-icon-box" style="color:#059669;"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 4-5.5 8-5.5s7.2 1.5 8 5.5"/></svg></div>
+                            <span class="link-text" style="color:#059669;">Our Services</span>
+                            <span class="link-chevron"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span>
+                        </a>
+                                    </div>
+            </section>
+            
+            <hr class="hr-line">
+            
+                        <section id="qrshare" class="qr-share">
+                <details class="qr-acc">
+                    <summary class="qr-summary">
+                        <span class="qr-summary-icon"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20.5 14v3"/><path d="M14 20.5h3"/><path d="M20.5 20.5h.01"/></svg></span>
+                        <span class="qr-summary-text">
+                            <span class="qr-summary-title">Scan to open card</span>
+                            <span class="qr-summary-hint">Long-press or scan to add</span>
+                        </span>
+                        <span class="qr-summary-chevron"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
+                    </summary>
+                    <div class="qr-panel">
+                        <div class="qr-box"><svg class="qr-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 41 41" shape-rendering="crispEdges" role="img" aria-label="Cheung Mei Ling"><title>Cheung Mei Ling</title><rect width="41" height="41" fill="#fff"/><path d="M4 4h1v1h-1zM5 4h1v1h-1zM6 4h1v1h-1zM7 4h1v1h-1zM8 4h1v1h-1zM9 4h1v1h-1zM10 4h1v1h-1zM13 4h1v1h-1zM17 4h1v1h-1zM20 4h1v1h-1zM23 4h1v1h-1zM24 4h1v1h-1zM27 4h1v1h-1zM30 4h1v1h-1zM31 4h1v1h-1zM32 4h1v1h-1zM33 4h1v1h-1zM34 4h1v1h-1zM35 4h1v1h-1zM36 4h1v1h-1zM4 5h1v1h-1zM10 5h1v1h-1zM12 5h1v1h-1zM13 5h1v1h-1zM15 5h1v1h-1zM16 5h1v1h-1zM17 5h1v1h-1zM18 5h1v1h-1zM19 5h1v1h-1zM20 5h1v1h-1zM21 5h1v1h-1zM22 5h1v1h-1zM24 5h1v1h-1zM25 5h1v1h-1zM28 5h1v1h-1zM30 5h1v1h-1zM36 5h1v1h-1zM4 6h1v1h-1zM6 6h1v1h-1zM7 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM13 6h1v1h-1zM14 6h1v1h-1zM15 6h1v1h-1zM19 6h1v1h-1zM25 6h1v1h-1zM26 6h1v1h-1zM27 6h1v1h-1zM30 6h1v1h-1zM32 6h1v1h-1zM33 6h1v1h-1zM34 6h1v1h-1zM36 6h1v1h-1zM4 7h1v1h-1zM6 7h1v1h-1zM7 7h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1zM12 7h1v1h-1zM13 7h1v1h-1zM15 7h1v1h-1zM17 7h1v1h-1zM18 7h1v1h-1zM21 7h1v1h-1zM23 7h1v1h-1zM26 7h1v1h-1zM27 7h1v1h-1zM28 7h1v1h-1zM30 7h1v1h-1zM32 7h1v1h-1zM33 7h1v1h-1zM34 7h1v1h-1zM36 7h1v1h-1zM4 8h1v1h-1zM6 8h1v1h-1zM7 8h1v1h-1zM8 8h1v1h-1zM10 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM20 8h1v1h-1zM23 8h1v1h-1zM24 8h1v1h-1zM27 8h1v1h-1zM28 8h1v1h-1zM30 8h1v1h-1zM32 8h1v1h-1zM33 8h1v1h-1zM34 8h1v1h-1zM36 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM12 9h1v1h-1zM14 9h1v1h-1zM17 9h1v1h-1zM18 9h1v1h-1zM19 9h1v1h-1zM26 9h1v1h-1zM28 9h1v1h-1zM30 9h1v1h-1zM36 9h1v1h-1zM4 10h1v1h-1zM5 10h1v1h-1zM6 10h1v1h-1zM7 10h1v1h-1zM8 10h1v1h-1zM9 10h1v1h-1zM10 10h1v1h-1zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM26 10h1v1h-1zM28 10h1v1h-1zM30 10h1v1h-1zM31 10h1v1h-1zM32 10h1v1h-1zM33 10h1v1h-1zM34 10h1v1h-1zM35 10h1v1h-1zM36 10h1v1h-1zM16 11h1v1h-1zM18 11h1v1h-1zM19 11h1v1h-1zM20 11h1v1h-1zM22 11h1v1h-1zM24 11h1v1h-1zM25 11h1v1h-1zM26 11h1v1h-1zM27 11h1v1h-1zM28 11h1v1h-1zM4 12h1v1h-1zM5 12h1v1h-1zM6 12h1v1h-1zM7 12h1v1h-1zM8 12h1v1h-1zM10 12h1v1h-1zM11 12h1v1h-1zM12 12h1v1h-1zM13 12h1v1h-1zM14 12h1v1h-1zM16 12h1v1h-1zM17 12h1v1h-1zM21 12h1v1h-1zM22 12h1v1h-1zM28 12h1v1h-1zM29 12h1v1h-1zM31 12h1v1h-1zM33 12h1v1h-1zM35 12h1v1h-1zM11 13h1v1h-1zM12 13h1v1h-1zM13 13h1v1h-1zM17 13h1v1h-1zM20 13h1v1h-1zM21 13h1v1h-1zM22 13h1v1h-1zM23 13h1v1h-1zM24 13h1v1h-1zM27 13h1v1h-1zM29 13h1v1h-1zM30 13h1v1h-1zM34 13h1v1h-1zM35 13h1v1h-1zM36 13h1v1h-1zM5 14h1v1h-1zM6 14h1v1h-1zM7 14h1v1h-1zM10 14h1v1h-1zM11 14h1v1h-1zM12 14h1v1h-1zM13 14h1v1h-1zM15 14h1v1h-1zM16 14h1v1h-1zM17 14h1v1h-1zM18 14h1v1h-1zM19 14h1v1h-1zM20 14h1v1h-1zM21 14h1v1h-1zM24 14h1v1h-1zM26 14h1v1h-1zM29 14h1v1h-1zM31 14h1v1h-1zM33 14h1v1h-1zM35 14h1v1h-1zM5 15h1v1h-1zM6 15h1v1h-1zM8 15h1v1h-1zM11 15h1v1h-1zM12 15h1v1h-1zM13 15h1v1h-1zM14 15h1v1h-1zM15 15h1v1h-1zM18 15h1v1h-1zM19 15h1v1h-1zM20 15h1v1h-1zM23 15h1v1h-1zM24 15h1v1h-1zM25 15h1v1h-1zM26 15h1v1h-1zM29 15h1v1h-1zM30 15h1v1h-1zM31 15h1v1h-1zM34 15h1v1h-1zM4 16h1v1h-1zM5 16h1v1h-1zM6 16h1v1h-1zM8 16h1v1h-1zM9 16h1v1h-1zM10 16h1v1h-1zM11 16h1v1h-1zM13 16h1v1h-1zM15 16h1v1h-1zM21 16h1v1h-1zM23 16h1v1h-1zM26 16h1v1h-1zM29 16h1v1h-1zM32 16h1v1h-1zM33 16h1v1h-1zM4 17h1v1h-1zM7 17h1v1h-1zM12 17h1v1h-1zM14 17h1v1h-1zM16 17h1v1h-1zM17 17h1v1h-1zM22 17h1v1h-1zM23 17h1v1h-1zM25 17h1v1h-1zM26 17h1v1h-1zM27 17h1v1h-1zM30 17h1v1h-1zM35 17h1v1h-1zM36 17h1v1h-1zM6 18h1v1h-1zM7 18h1v1h-1zM9 18h1v1h-1zM10 18h1v1h-1zM11 18h1v1h-1zM12 18h1v1h-1zM13 18h1v1h-1zM14 18h1v1h-1zM17 18h1v1h-1zM18 18h1v1h-1zM19 18h1v1h-1zM20 18h1v1h-1zM21 18h1v1h-1zM22 18h1v1h-1zM28 18h1v1h-1zM29 18h1v1h-1zM30 18h1v1h-1zM35 18h1v1h-1zM4 19h1v1h-1zM9 19h1v1h-1zM12 19h1v1h-1zM13 19h1v1h-1zM16 19h1v1h-1zM17 19h1v1h-1zM19 19h1v1h-1zM24 19h1v1h-1zM25 19h1v1h-1zM26 19h1v1h-1zM28 19h1v1h-1zM29 19h1v1h-1zM30 19h1v1h-1zM31 19h1v1h-1zM32 19h1v1h-1zM34 19h1v1h-1zM4 20h1v1h-1zM5 20h1v1h-1zM6 20h1v1h-1zM7 20h1v1h-1zM8 20h1v1h-1zM9 20h1v1h-1zM10 20h1v1h-1zM11 20h1v1h-1zM13 20h1v1h-1zM16 20h1v1h-1zM18 20h1v1h-1zM21 20h1v1h-1zM26 20h1v1h-1zM27 20h1v1h-1zM28 20h1v1h-1zM29 20h1v1h-1zM31 20h1v1h-1zM32 20h1v1h-1zM35 20h1v1h-1zM4 21h1v1h-1zM5 21h1v1h-1zM6 21h1v1h-1zM8 21h1v1h-1zM13 21h1v1h-1zM20 21h1v1h-1zM21 21h1v1h-1zM22 21h1v1h-1zM23 21h1v1h-1zM24 21h1v1h-1zM25 21h1v1h-1zM27 21h1v1h-1zM29 21h1v1h-1zM30 21h1v1h-1zM33 21h1v1h-1zM35 21h1v1h-1zM36 21h1v1h-1zM4 22h1v1h-1zM5 22h1v1h-1zM7 22h1v1h-1zM9 22h1v1h-1zM10 22h1v1h-1zM12 22h1v1h-1zM15 22h1v1h-1zM16 22h1v1h-1zM19 22h1v1h-1zM20 22h1v1h-1zM22 22h1v1h-1zM25 22h1v1h-1zM28 22h1v1h-1zM33 22h1v1h-1zM35 22h1v1h-1zM6 23h1v1h-1zM7 23h1v1h-1zM8 23h1v1h-1zM9 23h1v1h-1zM12 23h1v1h-1zM15 23h1v1h-1zM18 23h1v1h-1zM19 23h1v1h-1zM20 23h1v1h-1zM22 23h1v1h-1zM23 23h1v1h-1zM25 23h1v1h-1zM26 23h1v1h-1zM30 23h1v1h-1zM31 23h1v1h-1zM32 23h1v1h-1zM34 23h1v1h-1zM6 24h1v1h-1zM10 24h1v1h-1zM12 24h1v1h-1zM13 24h1v1h-1zM14 24h1v1h-1zM15 24h1v1h-1zM19 24h1v1h-1zM21 24h1v1h-1zM24 24h1v1h-1zM26 24h1v1h-1zM29 24h1v1h-1zM32 24h1v1h-1zM35 24h1v1h-1zM4 25h1v1h-1zM5 25h1v1h-1zM6 25h1v1h-1zM7 25h1v1h-1zM8 25h1v1h-1zM11 25h1v1h-1zM16 25h1v1h-1zM17 25h1v1h-1zM18 25h1v1h-1zM20 25h1v1h-1zM22 25h1v1h-1zM23 25h1v1h-1zM24 25h1v1h-1zM25 25h1v1h-1zM27 25h1v1h-1zM30 25h1v1h-1zM33 25h1v1h-1zM35 25h1v1h-1zM36 25h1v1h-1zM4 26h1v1h-1zM8 26h1v1h-1zM10 26h1v1h-1zM11 26h1v1h-1zM13 26h1v1h-1zM14 26h1v1h-1zM17 26h1v1h-1zM18 26h1v1h-1zM19 26h1v1h-1zM20 26h1v1h-1zM24 26h1v1h-1zM26 26h1v1h-1zM30 26h1v1h-1zM33 26h1v1h-1zM35 26h1v1h-1zM4 27h1v1h-1zM6 27h1v1h-1zM7 27h1v1h-1zM9 27h1v1h-1zM13 27h1v1h-1zM16 27h1v1h-1zM17 27h1v1h-1zM19 27h1v1h-1zM20 27h1v1h-1zM25 27h1v1h-1zM26 27h1v1h-1zM28 27h1v1h-1zM29 27h1v1h-1zM30 27h1v1h-1zM31 27h1v1h-1zM32 27h1v1h-1zM33 27h1v1h-1zM34 27h1v1h-1zM4 28h1v1h-1zM7 28h1v1h-1zM8 28h1v1h-1zM9 28h1v1h-1zM10 28h1v1h-1zM12 28h1v1h-1zM14 28h1v1h-1zM16 28h1v1h-1zM18 28h1v1h-1zM21 28h1v1h-1zM26 28h1v1h-1zM27 28h1v1h-1zM28 28h1v1h-1zM29 28h1v1h-1zM30 28h1v1h-1zM31 28h1v1h-1zM32 28h1v1h-1zM33 28h1v1h-1zM36 28h1v1h-1zM12 29h1v1h-1zM14 29h1v1h-1zM20 29h1v1h-1zM23 29h1v1h-1zM24 29h1v1h-1zM25 29h1v1h-1zM28 29h1v1h-1zM32 29h1v1h-1zM33 29h1v1h-1zM34 29h1v1h-1zM36 29h1v1h-1zM4 30h1v1h-1zM5 30h1v1h-1zM6 30h1v1h-1zM7 30h1v1h-1zM8 30h1v1h-1zM9 30h1v1h-1zM10 30h1v1h-1zM12 30h1v1h-1zM13 30h1v1h-1zM15 30h1v1h-1zM16 30h1v1h-1zM19 30h1v1h-1zM20 30h1v1h-1zM24 30h1v1h-1zM25 30h1v1h-1zM26 30h1v1h-1zM27 30h1v1h-1zM28 30h1v1h-1zM30 30h1v1h-1zM32 30h1v1h-1zM34 30h1v1h-1zM35 30h1v1h-1zM4 31h1v1h-1zM10 31h1v1h-1zM15 31h1v1h-1zM18 31h1v1h-1zM19 31h1v1h-1zM20 31h1v1h-1zM23 31h1v1h-1zM25 31h1v1h-1zM26 31h1v1h-1zM27 31h1v1h-1zM28 31h1v1h-1zM32 31h1v1h-1zM33 31h1v1h-1zM34 31h1v1h-1zM36 31h1v1h-1zM4 32h1v1h-1zM6 32h1v1h-1zM7 32h1v1h-1zM8 32h1v1h-1zM10 32h1v1h-1zM12 32h1v1h-1zM15 32h1v1h-1zM21 32h1v1h-1zM28 32h1v1h-1zM29 32h1v1h-1zM30 32h1v1h-1zM31 32h1v1h-1zM32 32h1v1h-1zM35 32h1v1h-1zM36 32h1v1h-1zM4 33h1v1h-1zM6 33h1v1h-1zM7 33h1v1h-1zM8 33h1v1h-1zM10 33h1v1h-1zM12 33h1v1h-1zM16 33h1v1h-1zM17 33h1v1h-1zM18 33h1v1h-1zM21 33h1v1h-1zM22 33h1v1h-1zM23 33h1v1h-1zM24 33h1v1h-1zM27 33h1v1h-1zM32 33h1v1h-1zM33 33h1v1h-1zM35 33h1v1h-1zM36 33h1v1h-1zM4 34h1v1h-1zM6 34h1v1h-1zM7 34h1v1h-1zM8 34h1v1h-1zM10 34h1v1h-1zM12 34h1v1h-1zM14 34h1v1h-1zM17 34h1v1h-1zM18 34h1v1h-1zM19 34h1v1h-1zM20 34h1v1h-1zM21 34h1v1h-1zM24 34h1v1h-1zM26 34h1v1h-1zM27 34h1v1h-1zM28 34h1v1h-1zM30 34h1v1h-1zM33 34h1v1h-1zM4 35h1v1h-1zM10 35h1v1h-1zM12 35h1v1h-1zM16 35h1v1h-1zM17 35h1v1h-1zM20 35h1v1h-1zM22 35h1v1h-1zM24 35h1v1h-1zM25 35h1v1h-1zM26 35h1v1h-1zM29 35h1v1h-1zM30 35h1v1h-1zM31 35h1v1h-1zM32 35h1v1h-1zM33 35h1v1h-1zM34 35h1v1h-1zM4 36h1v1h-1zM5 36h1v1h-1zM6 36h1v1h-1zM7 36h1v1h-1zM8 36h1v1h-1zM9 36h1v1h-1zM10 36h1v1h-1zM12 36h1v1h-1zM14 36h1v1h-1zM16 36h1v1h-1zM18 36h1v1h-1zM19 36h1v1h-1zM21 36h1v1h-1zM26 36h1v1h-1zM27 36h1v1h-1zM28 36h1v1h-1zM30 36h1v1h-1zM31 36h1v1h-1zM35 36h1v1h-1z" fill="#000"/></svg></div>
+                    </div>
+                </details>
+            </section>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer-sec">
+            <p class="ver">版本 1.2.0</p>
+            <p>© 2026 香港耆康老人福利會 版權所有</p>
+        </div>
+
+        <!-- Fixed save bar -->
+        <div class="fixed-btn-bar">
+            <a href="../cheung-mei-ling.vcf" class="save-btn" download>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><path d="m8 12 4 4 4-4"/><path d="M5 20h14"/></svg>
+                <span>Save Contact</span>
+            </a>
+        </div>
+
+    </div>
+
+    
+    <script>function toggleWechat(show){var m=document.getElementById('wechatModal');if(!m)return;if(show){m.classList.remove('hidden');document.body.style.overflow='hidden';}else{m.classList.add('hidden');document.body.style.overflow='';}}</script>
+</body>
+</html>

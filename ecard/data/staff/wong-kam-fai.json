@@ -1,0 +1,76 @@
+{
+  "id": "st_003",
+  "slug": "wong-kam-fai",
+  "active": true,
+  "name": {
+    "zh": "黃錦輝",
+    "cn": "黄锦辉",
+    "en": "Wong Kam Fai"
+  },
+  "n": {
+    "family": "Wong",
+    "given": "Kam Fai"
+  },
+  "title": {
+    "zh": "示範用戶",
+    "cn": "示范用户",
+    "en": "Demo User"
+  },
+  "email": "user@sage.org.hk",
+  "phone_work": "2511 2235",
+  "phone_mobile": "9123 4567",
+  "address": {
+    "zh": "新界沙田瀝源街7號沙田會堂2樓",
+    "cn": "新界沙田沥源街7号沙田会堂2楼",
+    "en": "2/F, Sha Tin Town Hall, 7 Lek Yuen Street, Sha Tin, New Territories"
+  },
+  "images": {
+    "banner": "",
+    "avatar": "",
+    "wechat_qr": ""
+  },
+  "social_links": [
+    {
+      "platform": "Facebook",
+      "url": "https://www.facebook.com/sagehk",
+      "icon": "facebook",
+      "color": "#1877f2"
+    },
+    {
+      "platform": "Instagram",
+      "url": "https://www.instagram.com/sagehk",
+      "icon": "instagram",
+      "color": "#e1306c"
+    },
+    {
+      "platform": "LinkedIn",
+      "url": "https://www.linkedin.com/company/sagehk",
+      "icon": "linkedin",
+      "color": "#0a66c2"
+    }
+  ],
+  "custom_links": [
+    {
+      "title": {
+        "zh": "機構網站",
+        "cn": "机构网站",
+        "en": "Official Site"
+      },
+      "url": "https://www.sage.org.hk",
+      "icon": "globe",
+      "color": "#9b4c8b"
+    },
+    {
+      "title": {
+        "zh": "聯絡我們",
+        "cn": "联系我们",
+        "en": "Contact Us"
+      },
+      "url": "https://www.sage.org.hk/tc/contact_us",
+      "icon": "building",
+      "color": "#2563eb"
+    }
+  ],
+  "created_at": "2026-09-28T14:30:00+08:00",
+  "updated_at": "2026-09-28T14:30:00+08:00"
+}
