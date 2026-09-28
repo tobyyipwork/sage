@@ -13,7 +13,7 @@
  *   CONFIG 執行。測的是檔案裡那一份真實的程式碼，不是複製品 ——
  *   若只把邏輯抄過來測，程式改壞了測試還是綠的，等於沒測。
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -73,7 +73,11 @@ const realConfig = JSON.parse(readFileSync(resolve(ROOT, 'data', 'config.json'),
     `${SITE_URL}${lang === DEF ? `${BASE_PATH}/${slug}/` : `${BASE_PATH}/${slug}/${lang}/`}`;
 
   const cf = makeCardUrl(realConfig);
-  const slugs = ['chan-tai-man', 'lee-siu-wah', 'wong-kam-fai', 'cheung-mei-ling'];
+  /* 員工清單從 data/staff 動態取得，不寫死 ——
+     新增／移除員工時（例如從後台新增）測試會自動涵蓋，
+     不需要回來改這個檔案。 */
+  const staffDir = resolve(ROOT, 'data', 'staff');
+  const slugs = readdirSync(staffDir).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, '')).sort();
   const langs = [undefined, 'zh', 'cn', 'en'];
 
   let mismatches = [];
@@ -85,7 +89,11 @@ const realConfig = JSON.parse(readFileSync(resolve(ROOT, 'data', 'config.json'),
       if (a !== expect) mismatches.push(`${s}/${l || '(預設)'}\n        得 ${a}\n        期 ${expect}`);
     }
   }
-  check(mismatches.length === 0, `16 組（4 人 × 4 語言）與 build.js 規則完全一致`, `不一致：\n      ${mismatches.join('\n      ')}`);
+  check(
+    mismatches.length === 0 && slugs.length > 0,
+    `${slugs.length} 人 × 4 語言（共 ${slugs.length * 4} 組）與 build.js 規則完全一致`,
+    mismatches.length ? `不一致：\n      ${mismatches.join('\n      ')}` : 'data/staff 讀不到任何員工'
+  );
 }
 
 /* ---------- 2. 與 build.js 實際產出的檔案交叉驗證 ----------
@@ -93,9 +101,8 @@ const realConfig = JSON.parse(readFileSync(resolve(ROOT, 'data', 'config.json'),
  * 這裡改抓 build.js 真正寫出的 HTML 裡的 canonical，
  * 兩者比對才是獨立證據。 */
 {
-  const fs = await import('node:fs');
   const distIdx = resolve(ROOT, 'dist', 'chan-tai-man', 'index.html');
-  if (!fs.existsSync(distIdx)) {
+  if (!existsSync(distIdx)) {
     bad('找不到 dist/chan-tai-man/index.html（請先跑 build）');
   } else {
     const canonical = (readFileSync(distIdx, 'utf8').match(/<link rel="canonical" href="([^"]+)"/) || [])[1];
