@@ -19,8 +19,8 @@
   "site": {
     "url": "https://tobyyipwork.github.io",
     "basePath": "/sage/ecard/dist",
-    "copyright": "© 2026 香港耆康老人福利會 版權所有",
-    "version": "1.2.0"
+    "version": "1.2.0",
+    "copyright": "© 2026 香港耆康老人福利會 版權所有"
   },
   "qr": {
     "enabled": true,

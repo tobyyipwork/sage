@@ -101,6 +101,7 @@
     <div class="sub" id="subline">SAGE E-Card Admin</div>
   </div>
   <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+    <button class="btn btn-ghost" id="settingsBtn" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)">⚙ 機構設定</button>
     <button class="btn btn-ghost" id="buildBtn" style="background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)">⟳ 立即重建前台</button>
     <button class="btn" id="addBtn" style="background:#fff;color:var(--primary)">＋ 新增電子名片</button>
     <button class="btn btn-ghost" id="logoutBtn" style="display:none;background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)">登出</button>
@@ -115,6 +116,108 @@
   <div class="grid" id="list"></div>
   <div class="empty" id="empty" style="display:none">尚無電子名片，點擊右上角「＋ 新增電子名片」開始。</div>
   <pre class="build-out" id="buildOut"></pre>
+</div>
+
+<!-- 機構設定 Modal -->
+<div class="overlay" id="cfgOverlay">
+  <div class="modal">
+    <h2><span>⚙ 機構設定</span><button class="x" id="cfgCloseX">&times;</button></h2>
+    <div class="body">
+
+      <p style="font-size:.8rem;color:var(--ink-faint);margin-bottom:1rem;line-height:1.6">
+        這裡的內容會套用到<strong>所有電子名片</strong>（機構名稱、地址、簡介、版權）。
+        儲存後若為自動模式，前台會在 1–2 分鐘內更新。
+      </p>
+
+      <fieldset>
+        <legend>機構名稱</legend>
+        <div class="field"><label>繁體中文</label><input type="text" id="c_org_zh" maxlength="200"></div>
+        <div class="field"><label>简体中文</label><input type="text" id="c_org_cn" maxlength="200"></div>
+        <div class="field"><label>English</label><input type="text" id="c_org_en" maxlength="200"></div>
+        <div class="muted" style="margin-top:.2rem">三種語言都必須填寫。</div>
+      </fieldset>
+
+      <fieldset>
+        <legend>關於我們</legend>
+        <div class="field"><label>繁體中文</label><textarea id="c_about_zh" rows="3" maxlength="2000" style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:.5rem;font-size:.875rem;font-family:inherit;resize:vertical"></textarea></div>
+        <div class="field"><label>简体中文</label><textarea id="c_about_cn" rows="3" maxlength="2000" style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:.5rem;font-size:.875rem;font-family:inherit;resize:vertical"></textarea></div>
+        <div class="field"><label>English</label><textarea id="c_about_en" rows="3" maxlength="2000" style="width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:.5rem;font-size:.875rem;font-family:inherit;resize:vertical"></textarea></div>
+        <div class="muted" style="margin-top:.2rem">可留空。留空則前台不顯示此區塊。</div>
+      </fieldset>
+
+      <fieldset>
+        <legend>地址與網站</legend>
+        <div class="field"><label>地址（繁體中文）</label><input type="text" id="c_addr_zh" maxlength="200"></div>
+        <div class="field"><label>地址（简体中文）</label><input type="text" id="c_addr_cn" maxlength="200"></div>
+        <div class="field"><label>地址（English）</label><input type="text" id="c_addr_en" maxlength="200"></div>
+        <div class="field">
+          <label>官方網站</label>
+          <input type="text" id="c_org_site" placeholder="https://www.example.org" autocomplete="off">
+          <div class="muted" style="margin-top:.2rem">需為完整網址（含 https://）。留空則不顯示。</div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>頁尾與 QR 標籤</legend>
+        <div class="field">
+          <label>版權宣告</label>
+          <input type="text" id="c_copyright" maxlength="200" placeholder="© 2026 機構名稱 版權所有">
+        </div>
+        <div class="field"><label>QR 區塊標題（繁體中文）</label><input type="text" id="c_qr_zh" maxlength="200"></div>
+        <div class="field"><label>QR 區塊標題（简体中文）</label><input type="text" id="c_qr_cn" maxlength="200"></div>
+        <div class="field"><label>QR 區塊標題（English）</label><input type="text" id="c_qr_en" maxlength="200"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>管理密碼</legend>
+        <div id="pwStatus" class="muted" style="margin-bottom:.8rem"></div>
+
+        <div class="field">
+          <label>目前的密碼</label>
+          <input type="password" id="c_pw_current" autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <div class="field">
+          <label>新密碼</label>
+          <input type="password" id="c_pw_new" autocomplete="new-password" placeholder="••••••••">
+        </div>
+        <div class="field">
+          <label>確認新密碼</label>
+          <input type="password" id="c_pw_confirm" autocomplete="new-password" placeholder="••••••••">
+        </div>
+
+        <div id="pwStrength" class="muted" style="min-height:1.2rem;margin-bottom:.5rem"></div>
+
+        <div class="muted" style="font-size:.74rem;line-height:1.7;margin-bottom:.8rem">
+          規則：至少 8 個字元、不可使用常見密碼、不可為重複單一字元。<br>
+          建議混合大小寫字母、數字與符號。
+        </div>
+
+        <button class="btn btn-primary btn-sm" id="c_pw_save">修改密碼</button>
+
+        <div class="muted" style="font-size:.72rem;margin-top:.7rem;line-height:1.6">
+          修改後會簽發新的通行證給這台裝置，你不必重新登入。<br>
+          其他裝置的舊通行證仍有效直到到期 —— 想全部登出請見
+          <code>docs/PLATFORM-ROADMAP.md</code> 的說明。
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>技術資訊（唯讀）</legend>
+        <div class="muted" style="line-height:1.9;font-size:.78rem">
+          <div>機構代碼：<code id="c_ro_orgcode"></code></div>
+          <div>前台網址：<code id="c_ro_url"></code></div>
+          <div>路徑前綴：<code id="c_ro_basepath"></code></div>
+          <div>版本：<code id="c_ro_version"></code></div>
+          <div style="margin-top:.4rem">這些由部署環境決定，為避免前台連結失效，不開放修改。</div>
+        </div>
+      </fieldset>
+
+    </div>
+    <div class="foot">
+      <button class="btn btn-ghost" id="cfgCancelBtn">取消</button>
+      <button class="btn btn-primary" id="cfgSaveBtn">儲存設定</button>
+    </div>
+  </div>
 </div>
 
 <!-- Modal -->
@@ -303,6 +406,206 @@ async function loadBuildStatus(){
   }catch(e){/* 略過 */}
 }
 async function refresh(){STAFF=await api('GET','/api/staff');renderList();}
+
+/* ── 機構設定 ──────────────────────────────────────────────────
+   可編輯欄位：機構名稱、關於我們、地址、官方網站、版權、QR 標籤。
+   唯讀欄位：org_code / site.url / site.basePath / site.version / langs，
+             由部署環境決定，改了會讓前台連結失效。
+
+   後端（config-schema.js）會再次驗證並忽略唯讀欄位 ——
+   前端驗證只是為了即時回饋，不是安全邊界。
+   ───────────────────────────────────────────────────────────── */
+
+function openSettings(){
+  const c = CONFIG || {};
+  const g = (o, k, l) => (o && o[k] && o[k][l]) || '';
+
+  // 可編輯
+  $('#c_org_zh').value   = g(c.org, 'zh');
+  $('#c_org_cn').value   = g(c.org, 'cn');
+  $('#c_org_en').value   = g(c.org, 'en');
+  $('#c_about_zh').value = g(c.about, 'zh');
+  $('#c_about_cn').value = g(c.about, 'cn');
+  $('#c_about_en').value = g(c.about, 'en');
+  $('#c_addr_zh').value  = g(c.address, 'zh');
+  $('#c_addr_cn').value  = g(c.address, 'cn');
+  $('#c_addr_en').value  = g(c.address, 'en');
+  $('#c_org_site').value = c.org_site || '';
+  $('#c_copyright').value = (c.site && c.site.copyright) || '';
+  $('#c_qr_zh').value = g(c.qr && c.qr.label, 'zh');
+  $('#c_qr_cn').value = g(c.qr && c.qr.label, 'cn');
+  $('#c_qr_en').value = g(c.qr && c.qr.label, 'en');
+
+  // 唯讀
+  $('#c_ro_orgcode').textContent  = c.org_code || '（未設定）';
+  $('#c_ro_url').textContent      = (c.site && c.site.url) || '（未設定）';
+  $('#c_ro_basepath').textContent  = (c.site && c.site.basePath) || '（未設定）';
+  $('#c_ro_version').textContent  = (c.site && c.site.version) || '（未設定）';
+
+  $('#cfgOverlay').classList.add('show');
+  loadPwStatus();
+}
+function closeSettings(){
+  $('#cfgOverlay').classList.remove('show');
+  // 清空密碼欄位 —— 不讓密碼在關閉後留在 DOM 裡
+  ['#c_pw_current','#c_pw_new','#c_pw_confirm'].forEach(s=>{const el=$(s);if(el)el.value='';});
+  const st=$('#pwStrength'); if(st){st.textContent='';st.style.color='';}
+}
+
+/* ── 管理密碼 ──────────────────────────────────────────────────
+   與後端 password-policy.js 使用同一套規則：
+   - 至少 8 字元
+   - 不可為常見密碼
+   - 不可為重複單一字元
+   前端檢查只是即時回饋，後端仍會再驗一次（安全邊界在後端）。
+   ───────────────────────────────────────────────────────────── */
+
+/** 與 password-policy.js 保持一致的規則 */
+const PW_MIN = 8;
+const PW_WEAK = new Set(['password','passw0rd','12345678','123456789','1234567890',
+  'qwertyui','qwerty123','abcdefgh','iloveyou','admin123','sage1234','ecard123',
+  'letmein1','welcome1','changeme','88888888','00000000','11111111','abcd1234','a1234567']);
+
+function evalPassword(pw){
+  if(pw.length < PW_MIN) return {ok:false, reason:`至少需要 ${PW_MIN} 個字元`, strength:'weak'};
+  if(PW_WEAK.has(pw.toLowerCase())) return {ok:false, reason:'這個密碼太常見', strength:'weak'};
+  if(/^(.)\1+$/.test(pw)) return {ok:false, reason:'不可為重複的單一字元', strength:'weak'};
+  let score=0;
+  if(pw.length>=PW_MIN) score++;
+  if(pw.length>=12) score++;
+  if(pw.length>=16) score++;
+  if(/[a-z]/.test(pw)&&/[A-Z]/.test(pw)) score++;
+  if(/\d/.test(pw)) score++;
+  if(/[^A-Za-z0-9]/.test(pw)) score++;
+  // 門檻與後端 password-policy.js 保持一致（0–1 weak / 2–3 fair / 4–5 good / 6 strong）
+  const strength = score>=6?'strong':score>=4?'good':score>=2?'fair':'weak';
+  return {ok:true, strength};
+}
+
+function updatePwStrength(){
+  const el=$('#pwStrength'); if(!el) return;
+  const pw=$('#c_pw_new').value;
+  if(!pw){el.textContent='';return;}
+  const r=evalPassword(pw);
+  const label={weak:'弱',fair:'普通',good:'良好',strong:'強'};
+  const color={weak:'var(--danger)',fair:'#b45309',good:'#15803d',strong:'#15803d'};
+  if(!r.ok){el.textContent='✗ '+r.reason;el.style.color='var(--danger)';return;}
+  el.textContent='強度：'+label[r.strength]+'（建議至少「良好」）';
+  el.style.color=color[r.strength];
+}
+
+async function loadPwStatus(){
+  const el=$('#pwStatus'); if(!el) return;
+  try{
+    const r=await api('GET','/api/password');
+    if(!r.configured){
+      el.innerHTML='⚠ 尚未設定管理密碼，請設定後再使用後台。';
+      el.style.color='var(--warn,#b45309)';
+    }else if(r.migrated){
+      el.innerHTML='✓ 管理密碼已可在這裡修改。';
+      el.style.color='var(--ink-faint)';
+    }else{
+      el.innerHTML='ℹ 目前使用部署時設定的密碼。在這裡修改後，將改由網頁管理。';
+      el.style.color='var(--ink-faint)';
+    }
+  }catch(e){ el.textContent=''; }
+}
+
+async function savePassword(){
+  const btn=$('#c_pw_save');
+  const cur=$('#c_pw_current').value;
+  const nw=$('#c_pw_new').value;
+  const cf=$('#c_pw_confirm').value;
+
+  if(!cur){toast('請輸入目前的密碼',true);$('#c_pw_current').focus();return;}
+  if(!nw){toast('請輸入新密碼',true);$('#c_pw_new').focus();return;}
+  if(nw!==cf){toast('兩次輸入的新密碼不一致',true);$('#c_pw_confirm').focus();return;}
+  if(nw===cur){toast('新密碼不可與目前的密碼相同',true);return;}
+
+  const r=evalPassword(nw);
+  if(!r.ok){toast(r.reason,true);return;}
+
+  btn.disabled=true;const old=btn.textContent;btn.textContent='修改中…';
+  try{
+    const res=await api('POST','/api/password',{current_password:cur,new_password:nw});
+    // 後端會簽發新通行證，換掉舊的以免本機立刻失效
+    if(res.token) setToken(res.token);
+    ['#c_pw_current','#c_pw_new','#c_pw_confirm'].forEach(s=>{const el=$(s);if(el)el.value='';});
+    const st=$('#pwStrength'); if(st){st.textContent='';st.style.color='';}
+    const label={weak:'弱',fair:'普通',good:'良好',strong:'強'};
+    toast('密碼已更新（強度：'+(label[res.strength]||res.strength)+'）');
+    await loadPwStatus();
+  }catch(e){
+    toast(e.message||'修改失敗',true);
+  }finally{
+    btn.disabled=false;btn.textContent=old;
+  }
+}
+
+async function saveSettings(){
+  const btn = $('#cfgSaveBtn');
+  const org = {
+    zh: $('#c_org_zh').value.trim(),
+    cn: $('#c_org_cn').value.trim(),
+    en: $('#c_org_en').value.trim(),
+  };
+
+  // 前端先行檢查（後端仍會再驗一次）
+  const missing = Object.entries(org).filter(([, v]) => !v).map(([k]) => k);
+  if (missing.length) {
+    const names = { zh: '繁體中文', cn: '简体中文', en: 'English' };
+    toast('機構名稱不可留空：' + missing.map((k) => names[k]).join('、'), true);
+    return;
+  }
+
+  const siteUrl = $('#c_org_site').value.trim();
+  if (siteUrl && !/^https?:\/\/.+/i.test(siteUrl)) {
+    toast('官方網站需為完整網址（含 http:// 或 https://）', true);
+    return;
+  }
+
+  const payload = {
+    org,
+    about: {
+      zh: $('#c_about_zh').value.trim(),
+      cn: $('#c_about_cn').value.trim(),
+      en: $('#c_about_en').value.trim(),
+    },
+    address: {
+      zh: $('#c_addr_zh').value.trim(),
+      cn: $('#c_addr_cn').value.trim(),
+      en: $('#c_addr_en').value.trim(),
+    },
+    org_site: siteUrl,
+    site: { copyright: $('#c_copyright').value.trim() },
+    qr: {
+      label: {
+        zh: $('#c_qr_zh').value.trim(),
+        cn: $('#c_qr_cn').value.trim(),
+        en: $('#c_qr_en').value.trim(),
+      },
+    },
+  };
+
+  btn.disabled = true; btn.textContent = '儲存中…';
+  try {
+    const r = await api('PUT', '/api/config', payload);
+    CONFIG = r.config || CONFIG;              // 用回傳值更新本地狀態
+    $('#subline').textContent = (CONFIG.org && CONFIG.org.zh ? CONFIG.org.zh + ' · ' : '')
+      + 'SAGE E-Card Admin · v' + (CONFIG.site ? CONFIG.site.version : '') + (IS_CLOUD ? ' · 雲端' : '');
+    closeSettings();
+    const rb = r.rebuild;
+    if (rb && rb.triggered) toast('設定已儲存，前台約 1–2 分鐘後更新');
+    else if (rb && rb.manual) toast('設定已儲存 — 請按「⟳ 立即重建前台」讓前台更新');
+    else if (rb && rb.configured === false) toast('設定已儲存（自動重建未設定，需手動觸發）');
+    else toast('設定已儲存');
+    await loadBuildStatus();
+  } catch (e) {
+    toast(e.message || '儲存失敗', true);
+  } finally {
+    btn.disabled = false; btn.textContent = '儲存設定';
+  }
+}
 
 function renderList(){
   const list=$('#list');list.innerHTML='';
@@ -529,8 +832,15 @@ $('#closeX').onclick=closeForm;
 $('#cancelBtn').onclick=closeForm;
 $('#saveBtn').onclick=submitForm;
 $('#buildBtn').onclick=doBuild;
+$('#settingsBtn').onclick=openSettings;
+$('#cfgCloseX').onclick=closeSettings;
+$('#cfgCancelBtn').onclick=closeSettings;
+$('#cfgSaveBtn').onclick=saveSettings;
+$('#c_pw_save').onclick=savePassword;
+$('#c_pw_new').addEventListener('input',updatePwStrength);
 $('#overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeForm();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeForm();});
+$('#cfgOverlay').addEventListener('click',e=>{if(e.target.id==='cfgOverlay')closeSettings();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeForm();closeSettings();}});
 
 /* ── 啟動 ── */
 if(IS_CLOUD){
