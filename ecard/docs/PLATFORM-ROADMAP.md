@@ -138,45 +138,73 @@ const BASE_PATH = (config.site.basePath || '').replace(/\/+$/, '');
 
 由小到大，每層可獨立交付。
 
-### 第 1 層：可重設的密碼
+### 第 1 層：可重設的密碼 ✅ 已完成（2026-09-28）
 
 **核心動作**：把密碼雜湊從「Worker 密鑰」搬到 KV。
 
 ```
-現在：  env.ADMIN_PASSWORD_HASH          ← 唯讀，只能 CLI 改
-改成：  auth:{org}:password              ← 可透過 API 讀寫
+原本：  env.ADMIN_PASSWORD_HASH          ← 唯讀，只能 CLI 改
+現在：  auth:{org}:password              ← 可透過 API 讀寫
+        （讀不到時才回落環境密鑰）
 ```
 
-**具體做法**：
+**實際實作**：
 
 ```js
-// storage.js 新增
-const kAuth = (kind) => `auth:${ORG}:${kind}`;      // auth:sage:password
-const getAuthHash  = () => getJson(kAuth('password'));
-const putAuthHash  = (hash) => putJson(kAuth('password'), { hash, updated_at: new Date().toISOString() });
+// storage.js
+const kAuthPassword = () => `auth:${ORG}:password`;
+const getPasswordRecord = () => getJson(kAuthPassword());
+const putPasswordRecord = (hash, { algo='sha256', updatedBy='admin' } = {}) => { ... };
+const hasPasswordRecord = async () => { ... };
 ```
 
 ```js
-// auth.js 的 verifyLogin 改為優先讀 KV，回落 env
-export const verifyLogin = async (password, env, storage) => {
-  // 向後相容：KV 沒有值時仍接受舊的環境密鑰
-  const fromKv = await storage.getAuthHash();
-  const stored = fromKv?.hash || String(env.ADMIN_PASSWORD_HASH || '');
-  ...
+// auth.js — 優先 KV，讀不到才回落環境密鑰
+export const verifyLogin = async (password, env, storage = null) => {
+  if (storage) {
+    const rec = await storage.getPasswordRecord();
+    if (rec?.hash) { /* 比對 KV 的雜湊，source: 'kv' */ }
+  }
+  /* 回落：env.ADMIN_PASSWORD_HASH，source: 'env' */
 };
 ```
 
-**新增端點**：
+**端點**：
 
 | 端點 | 用途 |
 | --- | --- |
+| `GET /api/password` | 只回報狀態（`configured` / `source` / `migrated`），**絕不回傳雜湊** |
 | `POST /api/password` | 修改密碼（需帶舊密碼驗證） |
+
+**密碼政策**：`password-policy.js`，前後端共用。
+至少 8 字元、不可為常見密碼、不可為重複單一字元。
+強度評分僅供提示，不影響是否通過。
 
 **解鎖**：網頁修改密碼。
 **仍缺**：忘記密碼 —— 沒有寄信能力就無法安全地驗證身分。
 
-> **相容性設計要點**：務必保留對 `env.ADMIN_PASSWORD_HASH` 的回落。
-> 否則這次升級會讓現有機構（SAGE）**立刻無法登入**。
+#### 相容性設計（實作時最容易出錯處）
+
+> **務必保留對 `env.ADMIN_PASSWORD_HASH` 的回落。**
+> 否則這次升級會讓現有機構（SAGE）**立刻無法登入** ——
+> 因為升級當下 KV 裡還沒有值。
+>
+> 有了回落，機構可以照自己的步調遷移：
+> **第一次在網頁改密碼時**才會寫入 KV，之後就以 KV 為準。
+
+另外補上兩層防護：
+
+| 情境 | 行為 |
+| --- | --- |
+| KV 讀取拋錯 | 回落環境密鑰（KV 故障不該讓登入整個壞掉） |
+| KV 與環境密鑰都沒有 | 回 500 —— 這是「設定問題」，不是「密碼錯」 |
+
+#### 已知限制
+
+改密碼後會簽發新通行證給**當前裝置**，但其他裝置的舊通行證
+仍有效直到到期（無狀態 JWT 設計的固有取捨）。
+想強制全部登出需輪換 `TOKEN_SECRET`，或改為有狀態的 token 撤銷清單。
+以本專案「每機構 1–2 位職員」的規模，目前不需處理。
 
 ---
 
@@ -314,18 +342,63 @@ user:{org}:{email}  →  { email, role, added_at, last_login_at, active }
 
 ## 五、建議順序
 
-| 順序 | 項目 | 理由 |
+| 順序 | 項目 | 狀態 |
 | --- | --- | --- |
-| **1** | 第 2 層：機構設定介面 ＋ 後端驗證 | 後端已就緒，改動最小、成果最明顯 |
-| **2** | 第 1 層：網頁修改密碼 | 免除每次下 CLI；同時是第 3 層的地基 |
-| **3** | 第 3 層：Email 驗證碼 | 唯一能實現「忘記密碼」的路徑 |
-| 4 | 第 4 層：多使用者 | 等到真的有多人需求 |
+| **1** | 第 2 層：機構設定介面 ＋ 後端驗證 | ✅ 已完成 |
+| **2** | 第 1 層：網頁修改密碼 | ✅ 已完成 |
+| **3** | 第 3 層：Email 驗證碼 | 待做 —— 唯一能實現「忘記密碼」的路徑 |
+| 4 | 第 4 層：多使用者 | 待做 —— 等到真的有多人需求 |
 
 ### 為什麼先做第 2 層而不是第 1 層
 
 雖然第 1 層是架構基礎，但第 2 層的**後端已完全就緒**，
 只需補前端介面與驗證邏輯即可立即產生價值。
 先做出可用的成果，比先打地基更容易驗證方向是否正確。
+
+兩層都完成後，機構目前**已經可以自助**完成：
+
+- ✅ 登入
+- ✅ 管理名片（新增／編輯／刪除／上傳圖片）
+- ✅ 編輯機構資料（名稱、地址、簡介、版權、QR 標籤）
+- ✅ 修改自己的密碼
+- ❌ 忘記密碼時自行重設 ← 仍需第 3 層（或人工介入）
+
+---
+
+## 五之二、下一步：第 3 層（Email 驗證碼）
+
+這是目前唯一還缺的自助能力，也是最複雜的一層。
+
+**需要新增的相依**：一個寄信服務（Cloudflare Workers 本身無法寄信）。
+
+| 服務 | 免費額度 | 備註 |
+| --- | --- | --- |
+| Resend | 3,000 封/月 | API 最簡潔，對 Workers 友善 |
+| SendGrid | 100 封/日 | 老牌，設定較繁 |
+
+**流程**：
+
+```
+1. 輸入 email
+2. 查 users:{org} 名單 → 不在名單就直接拒絕（不洩漏帳號是否存在）
+3. 產生驗證碼，存 KV otp:{org}:{email}，TTL 10 分鐘
+4. 寄出驗證碼
+5. 輸入驗證碼 → 比對成功即發通行證
+```
+
+KV 的 TTL 特性正好合用：`KV.put(key, val, { expirationTtl: 600 })`
+
+**安全要點（必須全部落實）**：
+
+| 項目 | 做法 |
+| --- | --- |
+| 驗證碼長度 | 6 位數，**必須時序安全比較** |
+| 嘗試次數 | 同 email 連續失敗 5 次即鎖定 15 分鐘 |
+| 發送頻率 | 每分鐘最多 1 封、每小時最多 5 封 |
+| 回應一致性 | 帳號不存在也回「已寄出」，避免列舉攻擊 |
+| 驗證碼儲存 | 存雜湊而非明文 |
+
+儲存層已預留 `users:{org}` 作為授權 email 名單。
 
 ---
 
@@ -360,9 +433,10 @@ user:{org}:{email}  →  { email, role, added_at, last_login_at, active }
 | 上傳圖片（banner / avatar / wechat_qr） | ✅ |
 | 手動觸發重建 | ✅ |
 | 重建模式顯示 | ✅ |
-| **編輯機構資料** | ⚠️ 後端有，前端無 |
-| **修改密碼** | ❌ |
-| **忘記密碼** | ❌ |
+| 編輯機構資料（三語名稱／簡介／地址、官網、版權、QR 標籤） | ✅ |
+| 檢視密碼設定狀態（來源與是否已遷移） | ✅ |
+| 修改密碼（需驗證目前密碼 + 強度檢查） | ✅ |
+| 忘記密碼（自助重設） | ❌ 需第 3 層（Email 驗證碼） |
 
 ### Worker API 端點清單
 
@@ -371,7 +445,7 @@ user:{org}:{email}  →  { email, role, added_at, last_login_at, active }
 | `GET /api/health` | ✅ |
 | `POST /api/login` | ✅ |
 | `GET /api/config` | ✅ |
-| `PUT /api/config` | ✅ 存在但前端未使用 |
+| `PUT /api/config` | ✅ 僅更新（無既有值回 404）、白名單欄位、`org_code`／`langs` 唯讀 |
 | `GET /api/staff` | ✅ |
 | `POST /api/staff` | ✅ |
 | `GET /api/staff/:slug` | ✅ |
@@ -381,16 +455,19 @@ user:{org}:{email}  →  { email, role, added_at, last_login_at, active }
 | `DELETE /api/staff/:slug/image/:key` | ✅ |
 | `GET /api/build` | ✅ |
 | `POST /api/build` | ✅ |
-| `POST /api/password` | ❌ 待新增 |
-| `POST /api/auth/request-code` | ❌ 待新增 |
-| `POST /api/auth/verify-code` | ❌ 待新增 |
+| `GET /api/password` | ✅ 回報 `configured`／`source`／`migrated` |
+| `POST /api/password` | ✅ 驗證舊密碼 → 政策檢查 → 寫入 KV `auth:{org}:password` |
+| `POST /api/auth/request-code` | ❌ 待新增（第 3 層） |
+| `POST /api/auth/verify-code` | ❌ 待新增（第 3 層） |
 
 ### 相關檔案
 
 | 檔案 | 職責 |
 | --- | --- |
-| `cloud/worker/src/auth.js` | 驗證層（登入、通行證簽發與驗證） |
-| `cloud/worker/src/storage.js` | KV 存取封裝，含 `users:{org}` 預留位 |
+| `cloud/worker/src/auth.js` | 驗證層（登入、通行證簽發與驗證，KV 優先／環境密鑰回落） |
+| `cloud/worker/src/password-policy.js` | 密碼政策（長度、常見密碼黑名單、強度評分） |
+| `cloud/worker/src/config-schema.js` | 機構設定白名單與合併語意驗證 |
+| `cloud/worker/src/storage.js` | KV 存取封裝，含 `auth:{org}:password`、`users:{org}` 預留位 |
 | `cloud/worker/src/index.js` | 路由表與 API 實作 |
 | `admin/public/index.html` | 後台單頁應用 |
 | `data/config.json` | 機構設定（本機版）；雲端版存在 KV `config:{org}` |
