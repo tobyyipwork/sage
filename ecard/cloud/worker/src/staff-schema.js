@@ -42,6 +42,22 @@ export const sanitizeStaff = (input, { isNew, existing, nextId }) => {
   out.phone_mobile = str(input.phone_mobile);
   out.active = input.active === false ? false : true;
 
+  /* 分部地址（選填）。
+     機構有多個分部時，同一機構底下不同同事可能在不同地址上班，
+     所以這裡允許「逐張名片」覆寫機構層級的 config.address。
+     留空即代表沿用機構地址 —— 這是刻意的：大部分同事不需要填。
+
+     注意：這裡「留空」一律寫成空字串（不是沿用舊值），
+     因為使用者清空欄位的意圖就是「改回用機構地址」。 */
+  out.address = {
+    zh: str(input.address?.zh),
+    cn: str(input.address?.cn),
+    en: str(input.address?.en),
+  };
+
+  /* 只要三語皆空就整個移除，讓舊資料維持乾淨（不留下 address 空殼） */
+  if (!out.address.zh && !out.address.cn && !out.address.en) delete out.address;
+
   out.social_links = Array.isArray(input.social_links)
     ? input.social_links
         .map((s) => ({

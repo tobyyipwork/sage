@@ -214,6 +214,7 @@ node cloud/worker/test-browser.mjs   # 15 項介面端對端檢查（真實瀏�
   "email": "user@sage.org.hk",
   "phone_work": "2511 2235",
   "phone_mobile": "9123 4567",
+  "address": { "zh": "九龍旺角彌敦道700號10樓", "cn": "九龙旺角弥敦道700号10楼", "en": "10/F, 700 Nathan Road, Mong Kok" },
   "images": { "banner": "", "avatar": "", "wechat_qr": "" },
   "social_links": [
     { "platform": "Facebook", "url": "https://…", "icon": "facebook", "color": "#1877f2" }
@@ -228,6 +229,11 @@ node cloud/worker/test-browser.mjs   # 15 項介面端對端檢查（真實瀏�
 
 - `slug`：只能小寫英數與連字號（會成為網址的一部分）
 - `active: false`：暫時隱藏該名片
+- `address`（選填）：**分部地址**。機構有多個分部時，不同同事可能在不同地址上班，
+  可在自己的名片填所屬分部。留空（或整欄不填）即沿用機構層級的
+  `config.json` → `address`。**三語可各自獨立留空**，
+  例如只填繁中時，簡中與英文仍會顯示機構地址。
+  vCard 的 `ADR` 一律採用繁體，因為 vCard 只能存單一地址值。
 - `images.*`：填 truthy 值即代表啟用該圖；實際圖檔放 `assets/images/{slug}/`
   - `banner`（橫幅）、`avatar`（頭像）、`wechat_qr`（微信 QR）
 - `icon` 可用值：`globe` `envelope` `phone` `mobile` `building` `map-pin` `user`

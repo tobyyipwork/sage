@@ -189,7 +189,8 @@ const buildVcf = (staff, { config }) => {
   lines.push(`FN:${escVCard(`${staff.name.zh}${staff.name.en ? ` (${staff.name.en})` : ''}`)}`);
   lines.push(`ORG:${escVCard(`${config.org.zh};${config.org.en}`)}`);
   if (staff.title?.zh) lines.push(`TITLE:${escVCard(`${staff.title.zh}${staff.title.en ? ` (${staff.title.en})` : ''}`)}`);
-  lines.push(`ADR;TYPE=WORK:;;${escVCard(config.address.zh)};;;;Hong Kong`);
+  const adr = resolveAddress(staff, 'zh');
+  if (adr) lines.push(`ADR;TYPE=WORK:;;${escVCard(adr)};;;;Hong Kong`);
   if (staff.phone_work) lines.push(`TEL;TYPE=WORK,VOICE:${escVCard(normalizeTel(staff.phone_work))}`);
   if (staff.phone_mobile) lines.push(`TEL;TYPE=CELL,VOICE:${escVCard(normalizeTel(staff.phone_mobile))}`);
   if (staff.email) lines.push(`EMAIL;TYPE=WORK,INTERNET:${escVCard(staff.email)}`);
@@ -206,6 +207,13 @@ const buildVcf = (staff, { config }) => {
 };
 
 /* ---------------- page rendering ---------------- */
+
+/* 地址解析：名片層級優先，留空則沿用機構地址。
+   機構有分部時，同事可在自己的名片填所屬分部地址。
+   vCard 的 ADR 恒用繁體，因為 vCard 是給通訊錄軟體讀的單一值。 */
+const resolveAddress = (staff, lang) =>
+  (staff.address?.[lang] || '').trim() || (config.address?.[lang] || '').trim();
+
 const tpl = fs.readFileSync(path.join(TPL_DIR, 'card.html'), 'utf8');
 const CSS = fs.readFileSync(path.join(TPL_DIR, 'style.css'), 'utf8');
 
@@ -253,9 +261,11 @@ const renderContacts = (staff, lang) => {
   items.push(
     `<li class="contact-item"><span class="contact-icon">${icon('building')}</span><span class="contact-label" style="font-weight:500;color:#374151;">${escHtml(config.org[lang])}</span></li>`
   );
-  items.push(
-    `<li class="contact-item" style="align-items:flex-start;"><span class="contact-icon" style="margin-top:0.15rem;">${icon('map-pin')}</span><span class="contact-label">${escHtml(config.address[lang])}</span></li>`
-  );
+  const addr = resolveAddress(staff, lang);
+  if (addr)
+    items.push(
+      `<li class="contact-item" style="align-items:flex-start;"><span class="contact-icon" style="margin-top:0.15rem;">${icon('map-pin')}</span><span class="contact-label">${escHtml(addr)}</span></li>`
+    );
   return items.join('\n                ');
 };
 

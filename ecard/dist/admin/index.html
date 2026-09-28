@@ -51,6 +51,7 @@
   legend{font-weight:700;font-size:.9rem;padding:0 .4rem;color:var(--primary)}
   .field{margin-bottom:.7rem}
   .field label{display:block;font-size:.78rem;color:var(--ink-soft);margin-bottom:.2rem;font-weight:600}
+  .field label .lbl-note{font-weight:400;color:var(--ink-faint);font-size:.72rem;margin-left:.35rem}
   .field input[type=text],.field input[type=email],.field input[type=tel],.field select{
     width:100%;padding:.5rem .6rem;border:1px solid var(--line);border-radius:.5rem;font-size:.875rem;font-family:inherit;background:#fff;color:var(--ink)}
   .field input:focus,.field select:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary)}
@@ -62,6 +63,12 @@
   .img-row .meta{flex:1}
   .img-row .meta .k{font-size:.8rem;font-weight:700}
   .img-row .meta .hint{font-size:.72rem;color:var(--ink-faint)}
+  .img-advanced{margin-top:.9rem;border-top:1px dashed var(--line);padding-top:.7rem}
+  .img-advanced>summary{cursor:pointer;font-size:.76rem;color:var(--ink-soft);font-weight:600;list-style:none;padding:.15rem 0}
+  .img-advanced>summary::-webkit-details-marker{display:none}
+  .img-advanced>summary::before{content:'▸ ';color:var(--ink-faint);display:inline-block;transition:transform .15s}
+  .img-advanced[open]>summary::before{transform:rotate(90deg)}
+  .img-advanced[open]>summary{margin-bottom:.6rem}
   .link-row{display:grid;grid-template-columns:1fr 2fr 1.3fr 1fr auto;gap:.4rem;margin-bottom:.5rem;align-items:center}
   .link-row input,.link-row select{padding:.4rem .5rem;border:1px solid var(--line);border-radius:.45rem;font-size:.8rem;font-family:inherit}
   .link-row .del{background:#fef2f2;color:var(--danger);border:1px solid #fca5a5;padding:.35rem .55rem;border-radius:.45rem;font-size:.8rem}
@@ -261,6 +268,14 @@
           <div class="field"><label>辦公室電話</label><input type="tel" id="f_phone_work" placeholder="2511 2235"></div>
           <div class="field"><label>手機</label><input type="tel" id="f_phone_mobile" placeholder="9123 4567"></div>
         </div>
+        <div class="field">
+          <label>地址（三語）<span class="lbl-note">留空即沿用機構地址，機構有分部時可在此填寫所屬分部</span></label>
+          <div class="triple">
+            <div><div class="lbl">繁</div><input type="text" id="f_addr_zh" placeholder="留空＝用機構地址"></div>
+            <div><div class="lbl">簡</div><input type="text" id="f_addr_cn" placeholder="留空＝用机构地址"></div>
+            <div><div class="lbl">EN</div><input type="text" id="f_addr_en" placeholder="Blank = org address"></div>
+          </div>
+        </div>
       </fieldset>
 
       <fieldset>
@@ -277,12 +292,19 @@
           <button type="button" class="btn btn-sm btn-ghost pick">選擇</button>
           <button type="button" class="btn btn-sm btn-danger rmv">移除</button>
         </div>
-        <div class="img-row" data-key="wechat_qr">
-          <img class="prev" id="prev_wechat_qr" alt=""><span class="meta"><div class="k">微信 QR</div><div class="hint">上傳後才會出現微信按鈕</div></span>
-          <input type="file" accept="image/*" class="imgfile" style="display:none">
-          <button type="button" class="btn btn-sm btn-ghost pick">選擇</button>
-          <button type="button" class="btn btn-sm btn-danger rmv">移除</button>
-        </div>
+        <!-- 微信 QR：目前隱藏收起備用。
+             後端與建置流程仍完整支援 wechat_qr（上傳後前台會自動出現微信按鈕），
+             只是多數機構用不到，先收起來免得佔版面。
+             要用時把 <details> 打開、或直接把 hidden 拿掉即可。 -->
+        <details class="img-advanced">
+          <summary>進階：微信 QR（備用，可略過）</summary>
+          <div class="img-row" data-key="wechat_qr">
+            <img class="prev" id="prev_wechat_qr" alt=""><span class="meta"><div class="k">微信 QR</div><div class="hint">上傳後才會出現微信按鈕</div></span>
+            <input type="file" accept="image/*" class="imgfile" style="display:none">
+            <button type="button" class="btn btn-sm btn-ghost pick">選擇</button>
+            <button type="button" class="btn btn-sm btn-danger rmv">移除</button>
+          </div>
+        </details>
       </fieldset>
 
       <fieldset>
@@ -645,6 +667,7 @@ function openForm(slug){
       $('#f_title_zh').value=d.title?.zh||'';$('#f_title_cn').value=d.title?.cn||'';$('#f_title_en').value=d.title?.en||'';
       $('#f_n_family').value=d.n?.family||'';$('#f_n_given').value=d.n?.given||'';
       $('#f_email').value=d.email||'';$('#f_phone_work').value=d.phone_work||'';$('#f_phone_mobile').value=d.phone_mobile||'';
+      $('#f_addr_zh').value=d.address?.zh||'';$('#f_addr_cn').value=d.address?.cn||'';$('#f_addr_en').value=d.address?.en||'';
       (d.social_links||[]).forEach(addSocialRow);
       (d.custom_links||[]).forEach(addCustomRow);
       setPrev('banner',d._images?.banner,slug);
@@ -657,6 +680,7 @@ function openForm(slug){
     $('#f_title_zh').value='';$('#f_title_cn').value='';$('#f_title_en').value='';
     $('#f_n_family').value='';$('#f_n_given').value='';
     $('#f_email').value='';$('#f_phone_work').value='';$('#f_phone_mobile').value='';
+    $('#f_addr_zh').value='';$('#f_addr_cn').value='';$('#f_addr_en').value='';
     addSocialRow();addCustomRow();
   }
   $('#overlay').classList.add('show');
@@ -742,6 +766,7 @@ async function submitForm(){
     email:$('#f_email').value.trim(),
     phone_work:$('#f_phone_work').value.trim(),
     phone_mobile:$('#f_phone_mobile').value.trim(),
+    address:{zh:$('#f_addr_zh').value.trim(),cn:$('#f_addr_cn').value.trim(),en:$('#f_addr_en').value.trim()},
     social_links:social.map(o=>({platform:o.platform,url:o.url,icon:o.icon,color:o.color})),
     custom_links:custom,
   };
