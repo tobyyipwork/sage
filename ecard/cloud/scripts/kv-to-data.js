@@ -169,6 +169,62 @@ console.log('');
 
 mkdirSync(STAFF_DIR, { recursive: true });
 
+/* ── 穩定序列化：沿用既有檔案鍵序 ─────────────────────────────
+ *
+ * 問題：KV 存的是 JSON 字串，回來時鍵序由當初寫入的順序決定，
+ *      跟 repo 裡手寫的資料檔往往不同。若照原樣寫檔，
+ *       每次自動重建都會產生「只有鍵序不同」的假變更 —— commit 充滿雜訊，
+ *       「資料真的變了嗎」也難以判斷。
+ *
+ * 為什麼不用「固定順序表」硬編每個欄位？
+ *       一開始試過，但欄位太多（site、images、custom_links 元素、
+ *       qr 的子物件…），漏一個就又是一種假 diff，邊修邊漏，很脆弱。
+ *
+ * 現在的解法：**以既有檔案的鍵序為準**（stableOrder）。
+ *       1. 舊檔有的鍵 → 依舊檔順序排前面
+ *       2. 新出現的鍵   → 排在後面，依字母序（穩定、可預期）
+ *       3. 舊檔消失的鍵 → 自然不出現
+ *       巢狀物件遞迴處理；陣列保持原順序（順序本身有意義）。
+ *
+ * 這樣「內容不變 → 位元組不變」，且完全不需要維護欄位清單。
+ * 唯一影響：首次寫入的新鍵會落在最後，但那只發生一次。           */
+
+const readExistingOrder = (file) => {
+  if (!existsSync(file)) return null;
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return null; // 壞檔就當作沒有，走自然序
+  }
+};
+
+/** 依 prev 的鍵序重排 cur 的鍵；prev 沒有的鍵排在最後（字母序） */
+const stableOrder = (cur, prev) => {
+  if (Array.isArray(cur)) {
+    /* 陣列保序；但元素是物件的話，用同樣位置的舊元素當鍵序參考 */
+    const prevArr = Array.isArray(prev) ? prev : [];
+    return cur.map((v, i) => stableOrder(v, prevArr[i]));
+  }
+  if (cur === null || typeof cur !== 'object') return cur;
+
+  const prevObj = prev && typeof prev === 'object' && !Array.isArray(prev) ? prev : {};
+  const curKeys = Object.keys(cur);
+  const prevKeys = Object.keys(prevObj);
+
+  const known = prevKeys.filter((k) => curKeys.includes(k));
+  const fresh = curKeys.filter((k) => !prevKeys.includes(k)).sort();
+
+  const out = {};
+  for (const k of [...known, ...fresh]) out[k] = stableOrder(cur[k], prevObj[k]);
+  return out;
+};
+
+/** 寫入 JSON，鍵序盡量沿用既有檔案 */
+const writeJsonStable = (file, obj) => {
+  const ordered = stableOrder(obj, readExistingOrder(file));
+  writeFileSync(file, JSON.stringify(ordered, null, 2) + '\n', 'utf8');
+};
+
 // 1. config
 const config = await kvGet(`config:${ORG}`);
 if (!config) {
@@ -176,7 +232,7 @@ if (!config) {
   console.error('    請先執行遷移：node cloud/seed/migrate-local.js');
   process.exit(1);
 }
-writeFileSync(join(DATA_DIR, 'config.json'), JSON.stringify(config, null, 2) + '\n', 'utf8');
+writeJsonStable(join(DATA_DIR, 'config.json'), config);
 console.log('  ✓ data/config.json');
 
 // 2. 名單
@@ -204,7 +260,7 @@ for (const entry of index) {
     failed.push(slug);
     continue;
   }
-  writeFileSync(join(STAFF_DIR, `${slug}.json`), JSON.stringify(staff, null, 2) + '\n', 'utf8');
+  writeJsonStable(join(STAFF_DIR, `${slug}.json`), staff);
   ok++;
 }
 console.log(`  ✓ data/staff/*.json — ${ok} 張`);
