@@ -34,6 +34,16 @@
   .ecard .n{font-weight:700;font-size:1rem}
   .ecard .t{font-size:.8rem;color:var(--ink-faint)}
   .ecard .slug{font-size:.72rem;color:var(--ink-faint);font-family:monospace}
+  /* 前台完整網址。
+     用 <a> 而非純文字，方便「另開新分頁」預覽名片；
+     字串很長（含網域與路徑），所以允許在任意位置換行、不撐破卡片。
+     顏色刻意低調：它是資訊，不是主要操作（主要操作是下方的編輯／刪除）。 */
+  .ecard .url{font-size:.7rem;font-family:monospace;line-height:1.5;word-break:break-all}
+  .ecard .url a{color:var(--ink-soft,#4b5563);text-decoration:none;border-bottom:1px dashed var(--line);padding-bottom:1px}
+  .ecard .url a:hover{color:var(--accent,#00834d);border-bottom-color:currentColor}
+  /* 狀態徽章 + 提示。放同一列，提示靠右收尾。 */
+  .ecard .meta{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+  .ecard .meta .ext{font-size:.66rem;color:var(--ink-faint);white-space:nowrap}
   .badge{display:inline-block;font-size:.68rem;padding:.1rem .45rem;border-radius:9999px;font-weight:700}
   .badge.on{background:#dcfce7;color:#166534}
   .badge.off{background:#f3f4f6;color:#6b7280}
@@ -365,6 +375,32 @@ const imgUrl=(slug,key)=>
     ? `${API_BASE}/img/${encodeURIComponent(slug)}/${encodeURIComponent(key)}?t=${Date.now()}`
     : `/preview/${encodeURIComponent(slug)}/${encodeURIComponent(key)}?t=${Date.now()}`;
 
+/* 名片的前台完整網址。
+   與 build.js 的 staffUrl() 使用同一組來源（CONFIG.site.url + basePath），
+   所以這裡顯示的網址與 QR 碼編入的、以及實際上線的完全一致。
+
+   為什麼要顯示完整網址？
+   卡片原本只顯示 /slug/ 這個相對片段，無法直接點開或複製 ——
+   要預覽得自己拼上網域與路徑，很容易拼錯（尤其 basePath 不直覺）。
+
+   ⚠️ 設定尚未載入時（CONFIG.site 為空）回傳空字串，
+   呼叫端據此決定是否顯示 —— 寧可先不顯示，也不要顯示半截的錯誤網址。
+
+   ⚠️ 只接受 http(s)。site.url 理論上來自後台設定（受信任），
+   但它會被放進 href，若為 javascript: 之類的偽協議，點擊就會執行。
+   這裡做最低限度的白名單，不把「設定一定是安全的」當成前提。 */
+const cardUrl=(slug,lang)=>{
+  const site=CONFIG&&CONFIG.site;
+  if(!site||!site.url) return '';
+  const base=String(site.url).replace(/\/+$/,'');
+  if(!/^https?:\/\//i.test(base)) return '';
+  const path=String(site.basePath||'').replace(/\/+$/,'');
+  // 預設語言不加語言後綴，與 build.js 的 staffPagePath() 一致
+  const def=(CONFIG&&CONFIG.default_lang)||'zh';
+  const suffix=(!lang||lang===def)?'':`/${lang}`;
+  return `${base}${path}/${slug}${suffix}/`;
+};
+
 let STAFF=[], CONFIG={}, editing=null, pending={}, removed=new Set();
 
 function toast(msg,err){const el=$('#toast');el.textContent=msg;el.className='toast show'+(err?' err':'');setTimeout(()=>el.className='toast',2600);}
@@ -636,6 +672,13 @@ function renderList(){
   for(const s of STAFF){
     const div=document.createElement('div');div.className='ecard';
     const av=s.has_avatar?`<img src="${imgUrl(s.slug,'avatar')}" alt="">`:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 4-5.5 8-5.5s7.2 1.5 8 5.5"/></svg>`;
+    const url=cardUrl(s.slug);
+    /* 完整網址列。CONFIG 尚未載入時 url 為空 ——
+       此時退回顯示 /slug/ 片段，不要顯示半截網址（見 cardUrl 的說明）。
+       有完整網址時就不再重複顯示 /slug/，因為它已包含在網址裡。 */
+    const urlRow=url
+      ? `<div class="url"><a href="${esc(url)}" target="_blank" rel="noopener" title="另開新分頁預覽名片">${esc(url)}</a></div>`
+      : `<div class="slug">/${esc(s.slug)}/</div>`;
     div.innerHTML=`
       <div class="row1">
         <div class="av">${av}</div>
@@ -644,7 +687,11 @@ function renderList(){
           <div class="t">${esc((s.title&&(s.title.zh||s.title.en))||'')}</div>
         </div>
       </div>
-      <div class="slug">/${esc(s.slug)}/ <span class="badge ${s.active?'on':'off'}">${s.active?'顯示中':'隱藏'}</span></div>
+      ${urlRow}
+      <div class="meta">
+        <span class="badge ${s.active?'on':'off'}">${s.active?'顯示中':'隱藏'}</span>
+        <span class="ext">↗ 另開新分頁</span>
+      </div>
       <div class="acts">
         <button class="btn btn-sm btn-ghost" data-edit="${esc(s.slug)}">編輯</button>
         <button class="btn btn-sm btn-danger" data-del="${esc(s.slug)}">刪除</button>
