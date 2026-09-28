@@ -164,10 +164,12 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # 記下新的指紋，與資料同步提交
+          # 記下新的指紋，與資料同步提交。
+          # 注意：腳本以 ecard/ 為 ROOT，指紋檔在 ecard/.kv-fingerprint，
+          # 不是 repo 根目錄的 .kv-fingerprint（曾因此 git add 失敗）。
           node ecard/cloud/scripts/kv-fingerprint.js --write
 
-          git add -A ecard/dist ecard/data .kv-fingerprint
+          git add -A ecard/dist ecard/data ecard/.kv-fingerprint
 
           if git diff --cached --quiet; then
             echo "→ 沒有任何檔案變化，不產生 commit"
