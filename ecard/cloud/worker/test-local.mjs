@@ -170,12 +170,32 @@ section('③ 設定機構資料（模擬遷移）');
     default_lang: 'zh',
     qr: { enabled: true, mode: 'static' },
   };
-  const put = await call('PUT', '/api/config', { body: cfg, token: TOKEN() });
-  check('寫入 config → 200', put.status === 200, `got ${put.status}`);
+
+  // 初始設定由「遷移腳本直接寫 KV」建立，不經 API。
+  // （2026-09 變更：PUT /api/config 改為只能「更新」既有設定，
+  //   不可用來初次建立 —— 否則任何登入者都能覆蓋新安裝的設定。）
+  await env.DATA.put(`config:${ORG}`, JSON.stringify(cfg));
 
   const got = await call('GET', '/api/config', { token: TOKEN() });
   check('讀回 config 內容一致', got.data?.org?.en === cfg.org.en);
   check('讀回 site.url 正確', got.data?.site?.url === cfg.site.url);
+
+  // 無既有設定時，PUT 應拒絕（避免誤用為建立途徑）
+  const emptyKV = makeKV();
+  const putNew = await call('PUT', '/api/config', {
+    body: cfg, token: TOKEN(), envOverride: { ...env, DATA: emptyKV },
+  });
+  check('無既有設定時 PUT → 404（不可用來初次建立）', putNew.status === 404, `got ${putNew.status}`);
+
+  // 更新既有設定應成功，且唯讀欄位不被覆寫
+  const putUpd = await call('PUT', '/api/config', {
+    body: { org: { zh: '新名稱', cn: '新名称', en: 'New Name' }, org_code: 'HACKED' },
+    token: TOKEN(),
+  });
+  check('更新既有設定 → 200', putUpd.status === 200, `got ${putUpd.status}`);
+  check('org.name 已更新', putUpd.data?.config?.org?.zh === '新名稱');
+  check('org_code 唯讀未被覆寫', putUpd.data?.config?.org_code === ORG, `got ${putUpd.data?.config?.org_code}`);
+  check('漏送的 site.url 保留', putUpd.data?.config?.site?.url === cfg.site.url);
 }
 
 section('④ 新增名片');

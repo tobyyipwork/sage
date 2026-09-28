@@ -45,6 +45,7 @@
 import { authenticate, issueToken, verifyLogin } from './auth.js';
 import { createStorage, mimeFor } from './storage.js';
 import { sanitizeStaff } from './staff-schema.js';
+import { sanitizeConfig } from './config-schema.js';
 import { handleRedirect } from './redirect.js';
 import { dispatchStatus, triggerRebuild, latestRun, rebuildMode } from './github.js';
 
@@ -290,8 +291,15 @@ export default {
         },
 
         'PUT /api/config': async ({}, request) => {
+          const existing = await storage.getConfig();
+          if (!existing) {
+            throw Object.assign(new Error('尚未設定機構資料，請先執行遷移腳本'), { status: 404 });
+          }
           const body = await jsonBody(request);
-          const cfg = await storage.putConfig(body);
+          // 經 config-schema 清洗：白名單欄位、唯讀欄位沿用、
+          // 缺漏欄位沿用現值（合併語意，非整份取代）。
+          const clean = sanitizeConfig(body, existing);
+          const cfg = await storage.putConfig(clean);
           const rebuild = await runRebuild(storage, env);
           return { ok: true, config: cfg, rebuild };
         },
