@@ -22,17 +22,24 @@ name: 自動重建名片前台
 
 on:
   schedule:
-    # 每天 00:18（UTC）。
+    # 每天 00:18 香港時間（HKT, UTC+8）。
     #
-    # 為什麼不是 00:00？GitHub 官方說明：
+    # ⚠️ GitHub 的 cron **一律使用 UTC**，沒有時區選項，
+    #    所以這裡寫的是換算後的 UTC 時間，不是香港時間：
+    #
+    #      00:18 HKT  =  16:18 UTC（前一天）
+    #
+    #    香港時間減 8 小時即為 UTC。00:18 - 8h = 16:18，
+    #    因為跨過午夜，對應的是「前一天的 UTC 16:18」，
+    #    執行時仍舊是每天的 00:18 HKT，不受影響。
+    #
+    # 為什麼分鐘數是 18 而不是 00？GitHub 官方說明：
     #   "High load times include the start of every hour.
     #    If the load is sufficiently high enough,
     #    some queued jobs may be dropped."
     # 整點是所有 workflow 擠在一起的高負載時段，排程可能延遲甚至被丟棄，
     # 因此刻意偏移 18 分鐘避開。
-    #
-    # 註：cron 使用 UTC。00:18 UTC = 08:18 香港時間。
-    - cron: '18 0 * * *'
+    - cron: '18 16 * * *'
   workflow_dispatch:
     inputs:
       force:
