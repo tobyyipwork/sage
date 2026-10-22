@@ -1,0 +1,31 @@
+{
+  "active": true,
+  "created_at": "2026-10-22T14:27:09+08:00",
+  "custom_links": [],
+  "email": "",
+  "id": "st_006",
+  "images": {
+    "avatar": "",
+    "banner": "",
+    "wechat_qr": ""
+  },
+  "n": {
+    "family": "",
+    "given": ""
+  },
+  "name": {
+    "cn": "耆康人",
+    "en": "SAGE",
+    "zh": "耆康人"
+  },
+  "phone_mobile": "",
+  "phone_work": "",
+  "slug": "sage-yan",
+  "social_links": [],
+  "title": {
+    "cn": "",
+    "en": "",
+    "zh": ""
+  },
+  "updated_at": "2026-10-22T14:27:09+08:00"
+}
